@@ -1,0 +1,13 @@
+# 领域模块目录
+#
+# 后续按业务领域组织模块，每个模块自包含：
+#   modules/reading/      阅读模块（文章列表、阅读器、AI 解析等）
+#   modules/vocabulary/   词汇模块（生词本、复习卡片等）
+#
+# 建议每个模块内部结构：
+#   modules/<domain>/
+#     ├── views/         页面级视图
+#     ├── components/    模块私有组件
+#     ├── composables/   模块业务逻辑
+#     ├── api.ts         模块接口（统一从 @/api 聚合导出）
+#     └── types.ts       模块类型

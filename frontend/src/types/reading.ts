@@ -1,0 +1,105 @@
+/**
+ * 阅读模块类型定义。
+ *
+ * 与后端 `/api/v1/reading` 系列接口一一对应，
+ * 字段命名采用 snake_case 以直接映射后端 JSON（后端为 Python），
+ * 前端不做额外的 camelCase 转换。
+ */
+
+/** 单词掌握程度 */
+export type MasteryLevel = 'new' | 'learning' | 'familiar' | 'mastered'
+
+/** 收藏的单词 */
+export interface WordCollection {
+  id: number
+  user_id: number
+  word: string
+  context: string
+  article_id: number | null
+  ai_explanation: string | null
+  mastery_level: MasteryLevel
+  study_count: number
+  last_studied_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** 收藏的句子 */
+export interface SentenceCollection {
+  id: number
+  user_id: number
+  sentence: string
+  article_id: number | null
+  note: string | null
+  created_at: string
+}
+
+/** 阅读历史记录 */
+export interface ReadingHistory {
+  id: number
+  user_id: number
+  article_id: number
+  started_at: string
+  ended_at: string | null
+  duration_seconds: number | null
+  created_at: string
+}
+
+/** 带文章标题的阅读历史（列表接口返回） */
+export interface ReadingHistoryWithArticle extends ReadingHistory {
+  article_title: string | null
+}
+
+/** AI 问答对话消息 */
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  timestamp?: string
+}
+
+// ---- SSE 流式请求 payload ----
+
+export interface ExplainWordPayload {
+  word: string
+  context: string
+  article_id: number
+}
+
+export interface AnalyzeSentencePayload {
+  sentence: string
+  article_id: number
+}
+
+export interface ParagraphSummaryPayload {
+  paragraph: string
+  article_id: number
+}
+
+export interface ChatPayload {
+  message: string
+  article_id: number
+}
+
+// ---- 非流式请求 payload ----
+
+export interface SaveWordPayload {
+  word: string
+  context: string
+  article_id?: number
+  ai_explanation?: string
+}
+
+export interface SaveSentencePayload {
+  sentence: string
+  article_id?: number
+  note?: string
+}
+
+export interface UpdateWordPayload {
+  mastery_level?: MasteryLevel
+  study_count?: number
+}
+
+export interface UpdateSentencePayload {
+  note?: string
+}

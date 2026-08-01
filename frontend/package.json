@@ -1,0 +1,38 @@
+{
+  "name": "ai-reading-coach-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI Reading Coach - an AI-powered English reading learning platform (frontend).",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "type-check": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "echarts": "^5.5.0",
+    "highlight.js": "^11.9.0",
+    "markdown-it": "^14.1.0",
+    "naive-ui": "^2.38.1",
+    "pinia": "^2.1.7",
+    "vue": "^3.4.21",
+    "vue-echarts": "^6.7.3",
+    "vue-i18n": "^9.13.1",
+    "vue-router": "^4.3.0",
+    "@vueuse/core": "^10.11.0"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.1",
+    "@types/node": "^20.12.12",
+    "@vitejs/plugin-vue": "^5.0.4",
+    "@vue/tsconfig": "^0.5.1",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.3",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11",
+    "vue-tsc": "^2.0.19"
+  }
+}
