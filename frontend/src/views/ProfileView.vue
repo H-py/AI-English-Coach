@@ -103,6 +103,8 @@ interface StatItem {
   iconBgClass: string
   /** 图标前景色类 */
   iconTextClass: string
+  /** 点击跳转路由 */
+  route: string
 }
 
 /** Lucide 风格线性图标 path（24×24 viewBox，stroke-based） */
@@ -122,28 +124,32 @@ const stats = ref<StatItem[]>([
     value: 0,
     icon: ICONS.bookmark,
     iconBgClass: 'bg-blue-50 dark:bg-blue-500/10',
-    iconTextClass: 'text-blue-500 dark:text-blue-400'
+    iconTextClass: 'text-blue-500 dark:text-blue-400',
+    route: '/vocabulary'
   },
   {
     labelKey: 'profile.sentencesCollected',
     value: 0,
     icon: ICONS.messageSquare,
     iconBgClass: 'bg-emerald-50 dark:bg-emerald-500/10',
-    iconTextClass: 'text-emerald-500 dark:text-emerald-400'
+    iconTextClass: 'text-emerald-500 dark:text-emerald-400',
+    route: '/sentences'
   },
   {
     labelKey: 'profile.readingSessions',
     value: 0,
     icon: ICONS.history,
     iconBgClass: 'bg-amber-50 dark:bg-amber-500/10',
-    iconTextClass: 'text-amber-500 dark:text-amber-400'
+    iconTextClass: 'text-amber-500 dark:text-amber-400',
+    route: '/history'
   },
   {
     labelKey: 'profile.articlesRead',
     value: 0,
     icon: ICONS.bookOpen,
     iconBgClass: 'bg-violet-50 dark:bg-violet-500/10',
-    iconTextClass: 'text-violet-500 dark:text-violet-400'
+    iconTextClass: 'text-violet-500 dark:text-violet-400',
+    route: '/articles'
   }
 ])
 
@@ -294,7 +300,8 @@ onMounted(() => {
           <div
             v-for="stat in stats"
             :key="stat.labelKey"
-            class="stat-card rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900"
+            class="stat-card cursor-pointer rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900"
+            @click="router.push(stat.route)"
           >
             <div class="flex items-center gap-4">
               <!-- 图标 -->

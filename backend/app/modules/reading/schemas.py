@@ -167,6 +167,7 @@ class ReadingHistoryOut(BaseModel):
     started_at: datetime
     ended_at: Optional[datetime] = None
     duration_seconds: Optional[int] = None
+    read_count: int = 1
     created_at: datetime
 
 
@@ -205,6 +206,7 @@ class ReadingHistoryWithArticleOut(BaseModel):
     started_at: datetime
     ended_at: Optional[datetime] = None
     duration_seconds: Optional[int] = None
+    read_count: int = 1
     created_at: datetime
 
 
@@ -212,4 +214,33 @@ class ReadingHistoryWithArticleListResponse(BaseModel):
     """Paginated list of reading-history entries with article titles."""
 
     items: list[ReadingHistoryWithArticleOut]
+    total: int
+
+
+# ---- AI conversation schemas ------------------------------------------------
+
+
+class ConversationOut(BaseModel):
+    """A single AI conversation message returned to clients.
+
+    Each message is either a ``"user"`` message (the learner's question)
+    or an ``"assistant"`` message (the AI coach's reply).
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    role: str
+    content: str
+    created_at: datetime
+
+
+class ConversationListResponse(BaseModel):
+    """Chronologically ordered list of AI conversation messages.
+
+    Returned by the conversation-history endpoint so the frontend can
+    restore a user's chat session after a page refresh.
+    """
+
+    items: list[ConversationOut]
     total: int

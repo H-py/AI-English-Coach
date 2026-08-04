@@ -167,14 +167,27 @@ onMounted(fetchHistory)
               </div>
 
               <!-- Status: completed (ended_at present) vs in progress -->
-              <NTag
-                :type="item.ended_at ? 'success' : 'info'"
-                size="small"
-                round
-                :bordered="false"
-              >
-                {{ item.ended_at ? t('history.completed') : t('history.inProgress') }}
-              </NTag>
+              <div class="flex items-center gap-2">
+                <!-- Read count badge (only when > 1) -->
+                <NTag
+                  v-if="item.read_count > 1"
+                  size="small"
+                  round
+                  :bordered="false"
+                  type="warning"
+                >
+                  {{ t('history.readCount', { count: item.read_count }) }}
+                </NTag>
+
+                <NTag
+                  :type="item.ended_at ? 'success' : 'info'"
+                  size="small"
+                  round
+                  :bordered="false"
+                >
+                  {{ item.ended_at ? t('history.completed') : t('history.inProgress') }}
+                </NTag>
+              </div>
             </div>
 
             <!-- Footer: duration + times + read again -->

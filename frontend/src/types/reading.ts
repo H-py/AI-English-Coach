@@ -42,6 +42,7 @@ export interface ReadingHistory {
   started_at: string
   ended_at: string | null
   duration_seconds: number | null
+  read_count: number
   created_at: string
 }
 
@@ -55,6 +56,14 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp?: string
+}
+
+/** AI 对话历史记录（后端返回，含 id 和 created_at） */
+export interface ConversationMessage {
+  id: number
+  role: string
+  content: string
+  created_at: string
 }
 
 // ---- SSE 流式请求 payload ----

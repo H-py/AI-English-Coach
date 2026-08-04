@@ -187,7 +187,7 @@ onUnmounted(async () => {
 </script>
 
 <template>
-  <div class="flex h-[calc(100vh-9rem)] flex-col gap-6">
+  <div class="flex h-[calc(100vh-7.5rem)] flex-col gap-6">
     <!-- 返回按钮 -->
     <button
       type="button"
@@ -207,7 +207,7 @@ onUnmounted(async () => {
 
     <!-- 双栏布局：左文章 + 右 AI 面板 -->
     <!--
-      整体高度固定为 calc(100vh - 9rem)（顶栏 4rem + 内容区 py-10 共 5rem），
+      整体高度固定为 calc(100vh - 7.5rem)（顶栏 4rem + 内容区 py-8 共 3.5rem），
       使 <main> 不产生页面级滚动。左侧文章列 overflow-y-auto 独立滚动，
       右侧 AI 面板作为 flex item 拉伸填满高度，永不随滚动移动。
     -->
@@ -278,7 +278,7 @@ onUnmounted(async () => {
         内部 AiPanel height:100% 填满 aside，自带 overflow-y-auto 处理内容溢出。
         不需要 sticky / fixed —— 因为文章列独立滚动，aside 根本不参与滚动。
       -->
-      <aside v-if="article" class="hidden w-96 shrink-0 overflow-hidden lg:block">
+      <aside v-if="article" class="hidden w-[420px] shrink-0 overflow-hidden lg:block">
         <AiPanel
           :article-id="article.id"
           :selected-text="selectedText"
@@ -292,7 +292,6 @@ onUnmounted(async () => {
 <style scoped>
 /* 正文 prose 风格：阅读优先，不依赖 typography 插件 */
 .article-content {
-  max-width: 70ch;
   font-size: 18px;
   line-height: 1.8;
   color: #1d1d1f;

@@ -56,7 +56,8 @@ const {
   paragraphSummary,
   sendChat,
   saveWord,
-  saveSentence
+  saveSentence,
+  loadChatHistory
 } = useReading()
 
 // ---- markdown 渲染器 ----
@@ -204,11 +205,66 @@ watch(streaming, (val) => {
   if (!val) scrollToBottom()
 })
 
+// 首次切换到 chat 标签时加载对话历史（懒加载，避免每次进页面都请求）
+watch(activeTab, (newTab) => {
+  if (newTab === 'chat' && chatMessages.value.length === 0) {
+    loadChatHistory(props.articleId).then(() => scrollToBottom())
+  }
+})
+
 // ============================================================
 //  收藏操作
 // ============================================================
 
-/** 收藏当前解释的单词 */
+/**
+ * 将 markdown 文本转为纯文本，去除所有格式标记。
+ * **bold** → bold, *italic* → italic, __bold__ → bold, _italic_ → italic,
+ * `code` → code, > quote → quote, - list → • list, 1. list → list, # 标题 → 标题
+ */
+function stripMarkdown(text: string): string {
+  return text
+    // 加粗: **text** 或 __text__
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    // 斜体: *text* 或 _text_（在加粗处理之后，避免误匹配）
+    .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '$1')
+    .replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, '$1')
+    // 行内代码: `code`
+    .replace(/`([^`]+)`/g, '$1')
+    // 标题: # / ## / ### ...
+    .replace(/^#{1,6}\s+/gm, '')
+    // 引用块标记: > text
+    .replace(/^>\s?/gm, '')
+    // 无序列表: - / * / + 开头
+    .replace(/^\s*[-*+]\s+/gm, '• ')
+    // 有序列表: 1. 2. ...
+    .replace(/^\s*\d+\.\s+/gm, '')
+    // 多余空行压缩
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/**
+ * 从单词 AI 解释中提取收藏内容。
+ * 保留单词 + 音标 + 释义，去除例句部分和所有 markdown 格式标记。
+ */
+function extractWordMeaning(content: string): string {
+  // 去除"例句"及之后的内容
+  const text = content.split(/\n例句[：:]/i)[0]
+  return stripMarkdown(text)
+}
+
+/**
+ * 清理句子笔记：去除开头的引用块（"> 原句"），并去除 markdown 格式标记。
+ */
+function cleanSentenceNote(content: string): string {
+  // aiContent 以 "> 原句\n\n" 开头，去掉这部分只保留 AI 分析内容
+  const match = content.match(/^>.*?\n\n([\s\S]*)/)
+  const text = match ? match[1] : content
+  return stripMarkdown(text)
+}
+
+/** 收藏当前解释的单词（保留音标+释义，去除例句和格式标记） */
 async function handleSaveWord(): Promise<void> {
   if (!props.selectedText) return
   try {
@@ -216,7 +272,7 @@ async function handleSaveWord(): Promise<void> {
       props.selectedText,
       props.selectedContext || props.selectedText,
       props.articleId,
-      aiContent.value
+      extractWordMeaning(aiContent.value)
     )
     wordSaved.value = true
     message.success(t('reading.wordSaved'))
@@ -225,11 +281,15 @@ async function handleSaveWord(): Promise<void> {
   }
 }
 
-/** 收藏当前分析的句子 */
+/** 收藏当前分析的句子（保存纯文本笔记，去除 markdown 标记） */
 async function handleSaveSentence(): Promise<void> {
   if (!props.selectedText) return
   try {
-    await saveSentence(props.selectedText, props.articleId, aiContent.value)
+    await saveSentence(
+      props.selectedText,
+      props.articleId,
+      cleanSentenceNote(aiContent.value)
+    )
     sentenceSaved.value = true
     message.success(t('reading.sentenceSaved'))
   } catch {

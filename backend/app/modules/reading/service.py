@@ -15,19 +15,29 @@ the user's message and the full assistant reply after streaming finishes.
 from collections.abc import AsyncGenerator
 from typing import Optional
 
+import redis.asyncio as aioredis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.ai.cache import (
+    cache_key,
+    get_cached_response,
+    set_cached_response,
+)
 from app.core.ai.factory import get_llm_provider
+from app.core.ai.memory import build_chat_context, maybe_summarize
 from app.core.ai.prompt_manager import load_reading_prompt, load_system_prompt
 from app.core.ai.provider import ChatMessage
 from app.core.exceptions import BizException
 from app.modules.article.models import Article
 from app.modules.article.repository import get_article_by_id
+from app.modules.reading import memory_repository as mem_repo
 from app.modules.reading import repository as repo
 from app.modules.reading.models import MasteryLevel
 from app.modules.reading.schemas import (
     AnalyzeSentenceRequest,
     ChatRequest,
+    ConversationListResponse,
+    ConversationOut,
     ExplainWordRequest,
     ParagraphSummaryRequest,
     ReadingHistoryCreate,
@@ -58,6 +68,21 @@ SENTENCE_NOT_FOUND_CODE = 90004
 # Reading-history entry not found for the current user.
 HISTORY_NOT_FOUND_CODE = 90005
 
+# ---- Per-endpoint LLM parameters --------------------------------------------
+# Temperature and max_tokens are tuned per endpoint based on the desired
+# output style: deterministic for translation/analysis, creative for chat.
+_TEMP_EXPLAIN_WORD = 0.5      # balanced — needs some variety for examples
+_TEMP_ANALYZE_SENTENCE = 0.3  # deterministic — grammar analysis should be stable
+_TEMP_TRANSLATE_SENTENCE = 0.3  # deterministic — translations should be consistent
+_TEMP_PARAGRAPH_SUMMARY = 0.5  # moderately deterministic — summaries should be stable
+_TEMP_CHAT = 0.8              # more creative — conversational, flexible answers
+
+_MAX_TOKENS_EXPLAIN_WORD = 500
+_MAX_TOKENS_ANALYZE_SENTENCE = 800
+_MAX_TOKENS_TRANSLATE_SENTENCE = 600
+_MAX_TOKENS_PARAGRAPH_SUMMARY = 400
+_MAX_TOKENS_CHAT = 1000
+
 
 async def _get_article_or_raise(
     db: AsyncSession, article_id: int
@@ -85,31 +110,44 @@ async def _get_article_or_raise(
 
 
 async def explain_word(
-    db: AsyncSession, user: User, data: ExplainWordRequest
+    db: AsyncSession, user: User, data: ExplainWordRequest,
+    redis: aioredis.Redis,
 ) -> AsyncGenerator[str, None]:
     """Stream an AI explanation of a word in context.
 
-    Validates that the referenced article exists, then builds a system
-    prompt (the coach persona) and a user prompt (the ``explain_word``
-    template) parameterised by the user's English level, and streams the
-    LLM response chunk by chunk.
+    Checks Redis cache first — the same word in the same context for the
+    same English level always produces the same explanation, so a cache
+    hit returns instantly with zero API cost. On cache miss, the response
+    is streamed from the LLM, accumulated, and stored in Redis for future
+    requests.
 
     Args:
         db: The active async session.
         user: The authenticated user (used for English level).
         data: The explain-word request payload.
+        redis: The shared Redis client for response caching.
 
     Yields:
         ``str`` chunks of the LLM response.
     """
     await _get_article_or_raise(db, data.article_id)
 
+    level = user.english_level.value
+    ckey = cache_key("explain-word", level, data.word, data.context)
+
+    # Cache hit — replay as a single chunk.
+    cached = await get_cached_response(redis, ckey)
+    if cached is not None:
+        yield cached
+        return
+
+    # Cache miss — stream from LLM and cache the full response.
     system_prompt = load_system_prompt("coach")
     user_prompt = load_reading_prompt(
         "explain_word",
         word=data.word,
         context=data.context,
-        level=user.english_level.value,
+        level=level,
     )
     messages = [
         ChatMessage("system", system_prompt),
@@ -117,30 +155,51 @@ async def explain_word(
     ]
 
     provider = get_llm_provider()
-    async for chunk in provider.chat_stream(messages):
+    collected: list[str] = []
+    async for chunk in provider.chat_stream(
+        messages, temperature=_TEMP_EXPLAIN_WORD,
+        max_tokens=_MAX_TOKENS_EXPLAIN_WORD,
+    ):
+        collected.append(chunk)
         yield chunk
+
+    await set_cached_response(redis, ckey, "".join(collected))
 
 
 async def analyze_sentence(
-    db: AsyncSession, user: User, data: AnalyzeSentenceRequest
+    db: AsyncSession, user: User, data: AnalyzeSentenceRequest,
+    redis: aioredis.Redis,
 ) -> AsyncGenerator[str, None]:
     """Stream an AI structural analysis of a sentence.
+
+    Results are cached in Redis — the same sentence for the same English
+    level always yields the same analysis. On cache hit the stored
+    response is replayed instantly without calling the LLM.
 
     Args:
         db: The active async session.
         user: The authenticated user (used for English level).
         data: The analyze-sentence request payload.
+        redis: The shared Redis client for response caching.
 
     Yields:
         ``str`` chunks of the LLM response.
     """
     await _get_article_or_raise(db, data.article_id)
+
+    level = user.english_level.value
+    ckey = cache_key("analyze-sentence", level, data.sentence)
+
+    cached = await get_cached_response(redis, ckey)
+    if cached is not None:
+        yield cached
+        return
 
     system_prompt = load_system_prompt("coach")
     user_prompt = load_reading_prompt(
         "sentence_analysis",
         sentence=data.sentence,
-        level=user.english_level.value,
+        level=level,
     )
     messages = [
         ChatMessage("system", system_prompt),
@@ -148,30 +207,50 @@ async def analyze_sentence(
     ]
 
     provider = get_llm_provider()
-    async for chunk in provider.chat_stream(messages):
+    collected: list[str] = []
+    async for chunk in provider.chat_stream(
+        messages, temperature=_TEMP_ANALYZE_SENTENCE,
+        max_tokens=_MAX_TOKENS_ANALYZE_SENTENCE,
+    ):
+        collected.append(chunk)
         yield chunk
+
+    await set_cached_response(redis, ckey, "".join(collected))
 
 
 async def translate_sentence(
-    db: AsyncSession, user: User, data: SentenceTranslationRequest
+    db: AsyncSession, user: User, data: SentenceTranslationRequest,
+    redis: aioredis.Redis,
 ) -> AsyncGenerator[str, None]:
     """Stream an AI translation of a sentence into Chinese.
+
+    Results are cached in Redis — the same sentence for the same English
+    level always yields the same translation.
 
     Args:
         db: The active async session.
         user: The authenticated user (used for English level).
         data: The translation request payload.
+        redis: The shared Redis client for response caching.
 
     Yields:
         ``str`` chunks of the LLM response.
     """
     await _get_article_or_raise(db, data.article_id)
+
+    level = user.english_level.value
+    ckey = cache_key("translate-sentence", level, data.sentence)
+
+    cached = await get_cached_response(redis, ckey)
+    if cached is not None:
+        yield cached
+        return
 
     system_prompt = load_system_prompt("coach")
     user_prompt = load_reading_prompt(
         "sentence_translation",
         sentence=data.sentence,
-        level=user.english_level.value,
+        level=level,
     )
     messages = [
         ChatMessage("system", system_prompt),
@@ -179,30 +258,50 @@ async def translate_sentence(
     ]
 
     provider = get_llm_provider()
-    async for chunk in provider.chat_stream(messages):
+    collected: list[str] = []
+    async for chunk in provider.chat_stream(
+        messages, temperature=_TEMP_TRANSLATE_SENTENCE,
+        max_tokens=_MAX_TOKENS_TRANSLATE_SENTENCE,
+    ):
+        collected.append(chunk)
         yield chunk
+
+    await set_cached_response(redis, ckey, "".join(collected))
 
 
 async def paragraph_summary(
-    db: AsyncSession, user: User, data: ParagraphSummaryRequest
+    db: AsyncSession, user: User, data: ParagraphSummaryRequest,
+    redis: aioredis.Redis,
 ) -> AsyncGenerator[str, None]:
     """Stream an AI summary of a paragraph.
+
+    Results are cached in Redis — the same paragraph for the same English
+    level always yields the same summary.
 
     Args:
         db: The active async session.
         user: The authenticated user (used for English level).
         data: The paragraph-summary request payload.
+        redis: The shared Redis client for response caching.
 
     Yields:
         ``str`` chunks of the LLM response.
     """
     await _get_article_or_raise(db, data.article_id)
 
+    level = user.english_level.value
+    ckey = cache_key("paragraph-summary", level, data.paragraph)
+
+    cached = await get_cached_response(redis, ckey)
+    if cached is not None:
+        yield cached
+        return
+
     system_prompt = load_system_prompt("coach")
     user_prompt = load_reading_prompt(
         "paragraph_summary",
         paragraph=data.paragraph,
-        level=user.english_level.value,
+        level=level,
     )
     messages = [
         ChatMessage("system", system_prompt),
@@ -210,50 +309,60 @@ async def paragraph_summary(
     ]
 
     provider = get_llm_provider()
-    async for chunk in provider.chat_stream(messages):
+    collected: list[str] = []
+    async for chunk in provider.chat_stream(
+        messages, temperature=_TEMP_PARAGRAPH_SUMMARY,
+        max_tokens=_MAX_TOKENS_PARAGRAPH_SUMMARY,
+    ):
+        collected.append(chunk)
         yield chunk
+
+    await set_cached_response(redis, ckey, "".join(collected))
 
 
 async def chat(
-    db: AsyncSession, user: User, data: ChatRequest
+    db: AsyncSession, user: User, data: ChatRequest,
+    redis: aioredis.Redis,
 ) -> AsyncGenerator[str, None]:
     """Stream an AI chat reply about the current article.
 
-    Loads the article's title and content plus the most recent
-    conversation messages as context, streams the assistant reply, and
-    then persists both the user's message and the full assistant reply
-    to ``ai_conversations`` so that future turns can reference them.
+    Uses the three-layer memory system (:mod:`app.core.ai.memory`) to
+    assemble context:
 
-    The assistant reply text is accumulated while streaming so it can be
-    saved in full after the stream completes. Persistence happens only
-    on successful completion — if streaming fails mid-way, neither
-    message is saved.
+    - **Long-term memory** (user profile + compressed summaries) is
+      loaded from Redis cache (or DB on miss) and injected into the
+      system prompt.
+    - **Short-term memory** (unsummarized conversation messages) is
+      loaded from the database and trimmed to fit the remaining token
+      budget.
+    - The user's new message is appended last.
+
+    After streaming completes, both the user's message and the full
+    assistant reply are persisted. Then ``maybe_summarize`` checks
+    whether the oldest unsummarized messages should be compressed into
+    a long-term memory entry.
 
     Args:
         db: The active async session.
         user: The authenticated user.
         data: The chat request payload.
+        redis: The shared Redis client for memory caching.
 
     Yields:
         ``str`` chunks of the LLM response.
     """
     article = await _get_article_or_raise(db, data.article_id)
 
-    recent = await repo.get_recent_messages(
-        db, user.id, data.article_id, limit=10
+    # Build the full context with three-layer memory.
+    messages = await build_chat_context(
+        db, redis, user, article, data.message
     )
-
-    system_prompt = load_reading_prompt(
-        "chat", title=article.title, content=article.content
-    )
-    messages: list[ChatMessage] = [ChatMessage("system", system_prompt)]
-    for msg in recent:
-        messages.append(ChatMessage(msg.role, msg.content))
-    messages.append(ChatMessage("user", data.message))
 
     provider = get_llm_provider()
     collected: list[str] = []
-    async for chunk in provider.chat_stream(messages):
+    async for chunk in provider.chat_stream(
+        messages, temperature=_TEMP_CHAT, max_tokens=_MAX_TOKENS_CHAT,
+    ):
         collected.append(chunk)
         yield chunk
 
@@ -262,6 +371,12 @@ async def chat(
     await repo.save_message(
         db, user.id, data.article_id, "assistant", "".join(collected)
     )
+
+    # Increment the user's message count for profile tracking.
+    await mem_repo.increment_message_count(db, user.id, delta=2)
+
+    # Trigger summarization if unsummarized messages exceed the threshold.
+    await maybe_summarize(db, redis, user.id, data.article_id)
 
 
 # ---- Word collection services ----------------------------------------------
@@ -376,7 +491,10 @@ async def remove_word(db: AsyncSession, user_id: int, word_id: int) -> None:
 async def save_sentence(
     db: AsyncSession, user_id: int, data: SentenceCollectionCreate
 ) -> SentenceCollectionOut:
-    """Save a collected sentence for the user.
+    """Save (upsert) a collected sentence for the user.
+
+    If the same sentence text already exists for this user, the existing
+    row's note and article_id are updated instead of creating a duplicate.
 
     Args:
         db: The active async session.
@@ -384,9 +502,9 @@ async def save_sentence(
         data: The sentence-collection create payload.
 
     Returns:
-        A :class:`SentenceCollectionOut` for the created sentence.
+        A :class:`SentenceCollectionOut` for the created or updated sentence.
     """
-    sentence = await repo.create_sentence(db, user_id, data)
+    sentence = await repo.get_or_create_sentence(db, user_id, data)
     return SentenceCollectionOut.model_validate(sentence)
 
 
@@ -475,9 +593,12 @@ async def update_sentence_note(
 async def start_reading(
     db: AsyncSession, user_id: int, data: ReadingHistoryCreate
 ) -> ReadingHistoryOut:
-    """Start a new reading session for an article.
+    """Start (or resume) a reading session for an article.
 
-    Validates that the article exists before creating the history entry.
+    Validates that the article exists. If the user already has a history
+    row for this article, ``read_count`` is incremented and the session
+    timestamps are reset for the new reading. Otherwise a new row is
+    created.
 
     Args:
         db: The active async session.
@@ -485,13 +606,13 @@ async def start_reading(
         data: The reading-history create payload.
 
     Returns:
-        A :class:`ReadingHistoryOut` for the created entry.
+        A :class:`ReadingHistoryOut` for the created or updated entry.
 
     Raises:
         BizException: If the article does not exist (code ``90002``).
     """
     await _get_article_or_raise(db, data.article_id)
-    history = await repo.create_history(db, user_id, data.article_id)
+    history = await repo.get_or_create_history(db, user_id, data.article_id)
     return ReadingHistoryOut.model_validate(history)
 
 
@@ -555,4 +676,35 @@ async def list_histories(
     return ReadingHistoryWithArticleListResponse(
         items=serialized,
         total=total,
+    )
+
+
+# ---- AI conversation services -----------------------------------------------
+
+
+async def list_conversations(
+    db: AsyncSession, user_id: int, article_id: int
+) -> ConversationListResponse:
+    """Return the user's AI chat history for a specific article.
+
+    Loads up to 50 most recent messages in chronological order so the
+    frontend can restore a chat session after a page refresh. The
+    article must exist.
+
+    Args:
+        db: The active async session.
+        user_id: The chatting user's id.
+        article_id: The article whose conversation history to load.
+
+    Returns:
+        A :class:`ConversationListResponse` with serialized messages.
+
+    Raises:
+        BizException: If the article does not exist (code ``90002``).
+    """
+    await _get_article_or_raise(db, article_id)
+    messages = await repo.list_conversations(db, user_id, article_id)
+    return ConversationListResponse(
+        items=[ConversationOut.model_validate(m) for m in messages],
+        total=len(messages),
     )

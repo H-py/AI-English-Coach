@@ -190,10 +190,15 @@ async def delete_word(db: AsyncSession, word: WordCollection) -> None:
 # ---- Sentence collection ----------------------------------------------------
 
 
-async def create_sentence(
+async def get_or_create_sentence(
     db: AsyncSession, user_id: int, data: SentenceCollectionCreate
 ) -> SentenceCollection:
-    """Create and persist a collected sentence.
+    """Upsert a collected sentence for the user.
+
+    If the user has already saved the exact same sentence text, the
+    existing row is updated with the new ``note`` (when supplied) and
+    ``article_id``. Otherwise a new :class:`SentenceCollection` row is
+    created.
 
     Args:
         db: The active async session.
@@ -201,8 +206,25 @@ async def create_sentence(
         data: The validated create payload.
 
     Returns:
-        The newly created :class:`SentenceCollection`.
+        The created or updated :class:`SentenceCollection`.
     """
+    result = await db.execute(
+        select(SentenceCollection).where(
+            SentenceCollection.user_id == user_id,
+            SentenceCollection.sentence == data.sentence,
+        )
+    )
+    existing = result.scalars().first()
+
+    if existing is not None:
+        if data.note is not None:
+            existing.note = data.note
+        if data.article_id is not None:
+            existing.article_id = data.article_id
+        await db.flush()
+        await db.refresh(existing)
+        return existing
+
     sentence = SentenceCollection(
         user_id=user_id,
         sentence=data.sentence,
@@ -319,13 +341,15 @@ async def delete_sentence(
 # ---- Reading history --------------------------------------------------------
 
 
-async def create_history(
+async def get_or_create_history(
     db: AsyncSession, user_id: int, article_id: int
 ) -> ReadingHistory:
-    """Create and persist a new reading-history entry.
+    """Upsert a reading-history entry for the user.
 
-    ``started_at`` is populated by the database ``server_default``
-    (``func.now()``) when the row is flushed.
+    If the user already has a history row for ``article_id``, increment
+    ``read_count`` and reset ``started_at`` to now (new session) while
+    clearing ``ended_at`` and ``duration_seconds``. Otherwise create a
+    new row.
 
     Args:
         db: The active async session.
@@ -333,8 +357,25 @@ async def create_history(
         article_id: The article being read.
 
     Returns:
-        The newly created :class:`ReadingHistory`.
+        The created or updated :class:`ReadingHistory`.
     """
+    result = await db.execute(
+        select(ReadingHistory).where(
+            ReadingHistory.user_id == user_id,
+            ReadingHistory.article_id == article_id,
+        )
+    )
+    existing = result.scalars().first()
+
+    if existing is not None:
+        existing.read_count += 1
+        existing.started_at = func.now()
+        existing.ended_at = None
+        existing.duration_seconds = None
+        await db.flush()
+        await db.refresh(existing)
+        return existing
+
     history = ReadingHistory(user_id=user_id, article_id=article_id)
     db.add(history)
     await db.flush()
@@ -392,7 +433,8 @@ async def list_histories(
 ) -> tuple[list[ReadingHistory], int]:
     """Return a paginated list of a user's reading history.
 
-    Results are ordered by ``created_at`` descending (newest first).
+    Results are ordered by ``started_at`` descending (most recently read
+    first), so re-reading an article bubbles it to the top.
 
     Args:
         db: The active async session.
@@ -414,7 +456,7 @@ async def list_histories(
     data_stmt = (
         select(ReadingHistory)
         .where(ReadingHistory.user_id == user_id)
-        .order_by(ReadingHistory.created_at.desc())
+        .order_by(ReadingHistory.started_at.desc())
         .offset(offset)
         .limit(page_size)
     )
@@ -428,8 +470,9 @@ async def list_histories_with_article(
     """Return a paginated list of reading history with article titles.
 
     Joins ``reading_histories`` with ``articles`` to include the article
-    title for each history entry. Results are ordered by ``created_at``
-    descending (newest first).
+    title for each history entry. Results are ordered by ``started_at``
+    descending (most recently read first), so re-reading an article
+    bubbles it to the top.
 
     Args:
         db: The active async session.
@@ -453,7 +496,7 @@ async def list_histories_with_article(
         select(ReadingHistory, Article.title)
         .outerjoin(Article, ReadingHistory.article_id == Article.id)
         .where(ReadingHistory.user_id == user_id)
-        .order_by(ReadingHistory.created_at.desc())
+        .order_by(ReadingHistory.started_at.desc())
         .offset(offset)
         .limit(page_size)
     )
@@ -500,12 +543,21 @@ async def get_recent_messages(
     db: AsyncSession,
     user_id: int,
     article_id: int,
-    limit: int = 10,
+    limit: int = 20,
 ) -> list[AiConversation]:
-    """Return the most recent chat messages for a user-article pair.
+    """Return the most recent **unsummarized** chat messages for context.
 
-    Messages are fetched newest-first and then reversed so the returned
-    list is in chronological order, ready to be used as LLM context.
+    Only messages with ``is_summarized=False`` are loaded — summarized
+    messages have been compressed into :class:`AiMemory` entries and are
+    loaded separately as long-term memory. Messages are fetched newest-
+    first (by ``id``) and then reversed so the returned list is in
+    chronological order, ready to be used as LLM context.
+
+    Ordering by ``id`` instead of ``created_at`` because PostgreSQL's
+    ``NOW()`` returns the same timestamp for all rows inserted within a
+    single transaction. Since user and assistant messages for one chat
+    turn are saved in the same transaction, ``created_at`` cannot
+    distinguish their insertion order.
 
     Args:
         db: The active async session.
@@ -521,8 +573,50 @@ async def get_recent_messages(
         .where(
             AiConversation.user_id == user_id,
             AiConversation.article_id == article_id,
+            AiConversation.is_summarized.is_(False),
         )
-        .order_by(AiConversation.created_at.desc())
+        .order_by(AiConversation.id.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return list(reversed(result.scalars().all()))
+
+
+async def list_conversations(
+    db: AsyncSession,
+    user_id: int,
+    article_id: int,
+    limit: int = 50,
+) -> list[AiConversation]:
+    """Return conversation messages for a user-article pair.
+
+    Unlike :func:`get_recent_messages` (which is tuned for LLM context
+    windows at 10 messages), this function returns up to ``limit``
+    messages for the frontend to restore a full chat session after a
+    page refresh.
+
+    Ordering by ``id`` instead of ``created_at`` because PostgreSQL's
+    ``NOW()`` returns the same timestamp for all rows inserted within a
+    single transaction. Since user and assistant messages for one chat
+    turn are saved in the same transaction, ``created_at`` cannot
+    distinguish their insertion order.
+
+    Args:
+        db: The active async session.
+        user_id: The chatting user's id.
+        article_id: The article the conversation is about.
+        limit: The maximum number of messages to return (default 50).
+
+    Returns:
+        A chronologically ordered list of :class:`AiConversation`.
+    """
+    stmt = (
+        select(AiConversation)
+        .where(
+            AiConversation.user_id == user_id,
+            AiConversation.article_id == article_id,
+        )
+        .order_by(AiConversation.id.desc())
         .limit(limit)
     )
     result = await db.execute(stmt)

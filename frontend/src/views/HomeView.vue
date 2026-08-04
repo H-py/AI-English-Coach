@@ -53,6 +53,8 @@ interface StatItem {
   iconBgClass: string
   /** 图标前景色类 */
   iconTextClass: string
+  /** 点击跳转路由 */
+  route: string
 }
 
 /** Lucide 风格线性图标 path（24×24 viewBox，stroke-based） */
@@ -73,7 +75,8 @@ const stats = ref<StatItem[]>([
     icon: ICONS.bookmark,
     barClass: 'bg-blue-400',
     iconBgClass: 'bg-blue-50 dark:bg-blue-500/10',
-    iconTextClass: 'text-blue-500 dark:text-blue-400'
+    iconTextClass: 'text-blue-500 dark:text-blue-400',
+    route: '/vocabulary'
   },
   {
     labelKey: 'home.sentencesCollected',
@@ -81,7 +84,8 @@ const stats = ref<StatItem[]>([
     icon: ICONS.messageSquare,
     barClass: 'bg-emerald-400',
     iconBgClass: 'bg-emerald-50 dark:bg-emerald-500/10',
-    iconTextClass: 'text-emerald-500 dark:text-emerald-400'
+    iconTextClass: 'text-emerald-500 dark:text-emerald-400',
+    route: '/sentences'
   },
   {
     labelKey: 'home.readingSessions',
@@ -89,7 +93,8 @@ const stats = ref<StatItem[]>([
     icon: ICONS.history,
     barClass: 'bg-amber-400',
     iconBgClass: 'bg-amber-50 dark:bg-amber-500/10',
-    iconTextClass: 'text-amber-500 dark:text-amber-400'
+    iconTextClass: 'text-amber-500 dark:text-amber-400',
+    route: '/history'
   },
   {
     labelKey: 'home.articlesRead',
@@ -97,7 +102,8 @@ const stats = ref<StatItem[]>([
     icon: ICONS.bookOpen,
     barClass: 'bg-violet-400',
     iconBgClass: 'bg-violet-50 dark:bg-violet-500/10',
-    iconTextClass: 'text-violet-500 dark:text-violet-400'
+    iconTextClass: 'text-violet-500 dark:text-violet-400',
+    route: '/articles'
   }
 ])
 
@@ -206,7 +212,8 @@ onMounted(() => {
           <div
             v-for="stat in stats"
             :key="stat.labelKey"
-            class="stat-card group relative overflow-hidden rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900"
+            class="stat-card group relative cursor-pointer overflow-hidden rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900"
+            @click="router.push(stat.route)"
           >
             <!-- 左侧彩色装饰条 -->
             <span

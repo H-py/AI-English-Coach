@@ -5,6 +5,7 @@ import type {
   SentenceCollection,
   ReadingHistory,
   ReadingHistoryWithArticle,
+  ConversationMessage,
   SaveWordPayload,
   SaveSentencePayload,
   UpdateWordPayload,
@@ -106,6 +107,13 @@ export const readingApi = {
     page_size?: number
   }): Promise<{ items: ReadingHistoryWithArticle[]; total: number }> {
     return http.get('/reading/history', { params })
+  },
+
+  // ---- AI 对话历史 ----
+
+  /** 获取指定文章的 AI 对话历史（最近 50 条，按时间正序） */
+  getConversations(articleId: number): Promise<{ items: ConversationMessage[]; total: number }> {
+    return http.get(`/reading/conversations/${articleId}`)
   }
 }
 

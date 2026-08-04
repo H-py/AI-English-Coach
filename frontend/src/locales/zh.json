@@ -117,8 +117,9 @@
     "endedAt": "结束时间",
     "completed": "已完成",
     "inProgress": "阅读中",
-    "totalSessions": "共 {count} 次阅读",
-    "readAgain": "再次阅读"
+    "totalSessions": "共 {count} 篇文章",
+    "readAgain": "再次阅读",
+    "readCount": "阅读 {count} 次"
   },
   "profile": {
     "title": "个人中心",

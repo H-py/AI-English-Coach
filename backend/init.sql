@@ -182,6 +182,33 @@ Consistency matters more than intensity. Missing a day is fine, but never miss t
     3,
     '["psychology", "self-improvement", "habits"]',
     TRUE
+),
+(
+    'Why workers are nostalgic for life before AI',
+    'Do you miss your old working life, the one before AI muscled in? Many do. Job hunters complain of the lack of the human touch as algorithms screen their applications and interviews are conducted by robo‑recruiters. Some lament that generative AI has intensified work rather than given them room to breathe.
+In one study, “employees worked at a faster pace [and] took on a broader scope of tasks” due to AI. Others spurn it altogether, opting out of automated shortcuts because it makes them lazy‑brained and contaminates their thinking.
+
+Almost two‑thirds (65 per cent) of white‑collar workers regularly yearn for their old working life, according to consultancy Adaptavist. About a third would ditch GenAI for inhibiting creativity, its research finds, while a similar proportion worry about misuse. Almost half say the need to fact‑check AI slop is adding to the slog — contrary to the grand promise that the future of work would dial down the drudgery.
+
+While only a survey, the sentiment chimes. Putting together a coherent report at the touch of a button seems easy but verifying it, and pruning the dross, is a time suck. Just look at the proliferation of AI‑generated LinkedIn posts. It’s not just that they have become formulaic but also interminably long. The alternative to checking is ridicule and even sanctions, as demonstrated by lawyers and consultants upbraided for including hallucinated cases in their legal arguments and reports.
+
+The impact of the technology on creativity is worrying. Research into creative writing among the general population rather than professional novelists finds that GenAI may inspire more plot twists, but overall leads to a duplication of ideas and a homogeneity of stories. Another study on innovation by the Wharton School at the University of Pennsylvania found similar results — while the ideas improved, the diversity weakened, leading one author to warn that “if you rely on ChatGPT as your only creative adviser, you’ll soon run out of ideas, because they’re too similar to each other”.
+
+Employers flip‑flopping AI policies have also discombobulated staff. First encouraged to use the technology to automate tasks and experiment widely, employees are now being asked to rein it in to control costs as tech companies switch to token‑based billing. This is even before moving on to fears over job losses, ethical and environmental issues. Is it any wonder some crave a pre‑AI workplace? In May, the former Google chief executive Eric Schmidt was booed by graduating students while delivering his commencement speech to the University of Arizona, warning them not to spurn the AI revolution. “When someone offers you a seat on the rocket ship, you do not ask which seat, you just get on. Graduates, the rocket ship is here,” he said.
+
+Brian Merchant, author of Blood in the Machine, has drawn parallels between the 18th‑century protests of the Luddites and modern resistance to AI. Both are commonly misconstrued as technophobes. But students’ reaction to the ex‑Google boss and the yearning for a pre‑AI world do not necessarily mean outright rejection — rather an objection to how it is used. Why should a graduate strap themselves to a rocket without asking questions? Jason Dressel, chief executive of the History Factory, which works with brands on heritage and archives, says nostalgia speaks to a desire for “stability, agency and economic confidence” while navigating rapid change. “AI intensifies that feeling because it is reshaping not only how people work, but how their contribution is valued.”
+
+As with all nostalgia, however, the risk is casting the past in rose hues. AI’s incursion into art and writing certainly increases cultural homogeneity and blandness built on stealing creators’ work to train large language models. But many consumers do not care and film, television and publishing executives were perfectly capable of putting out banal and repetitive content before AI came along. Not every creation is an experimental work of genius.
+
+While there are very serious concerns about how young people will learn how to do their job when the basic tasks can be done by AI, is it really the case that the apprenticeship model in banks and law firms of making graduates repeat a monotonous task 1,000 times was the best way? Or could older executives’ affection for their distant youth be muddying their view?
+Scrutinising the past is a useful way to clarify the bits of work we want to keep and which to ditch — but only if we are honest with ourselves.',
+    '为什么AI时代，越来越多人想回到从前？',
+    '金融时报',
+    'c1',
+    749,
+    4,
+    '["AI"]',
+    TRUE
 )
 ON CONFLICT DO NOTHING;
 
@@ -254,23 +281,26 @@ CREATE TABLE IF NOT EXISTS reading_histories (
     started_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     ended_at         TIMESTAMPTZ,
     duration_seconds INTEGER,
+    read_count       INTEGER      NOT NULL DEFAULT 1,
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 -- 索引
 CREATE INDEX IF NOT EXISTS ix_reading_histories_user_id ON reading_histories (user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_reading_histories_user_article ON reading_histories (user_id, article_id);
 
 -- ------------------------------------------------------------
 -- 11. ai_conversations 表（AI 对话记录）
 -- ------------------------------------------------------------
 -- 对应 backend/app/modules/reading/models.py 中的 AiConversation 模型
 CREATE TABLE IF NOT EXISTS ai_conversations (
-    id          BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id     BIGINT       NOT NULL REFERENCES users(id),
-    article_id  BIGINT       NOT NULL REFERENCES articles(id),
-    role        VARCHAR(20)  NOT NULL,
-    content     TEXT         NOT NULL,
-    created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    id              BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id         BIGINT       NOT NULL REFERENCES users(id),
+    article_id      BIGINT       NOT NULL REFERENCES articles(id),
+    role            VARCHAR(20)  NOT NULL,
+    content         TEXT         NOT NULL,
+    is_summarized   BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 -- 索引
@@ -278,7 +308,48 @@ CREATE INDEX IF NOT EXISTS ix_ai_conversations_user_id    ON ai_conversations (u
 CREATE INDEX IF NOT EXISTS ix_ai_conversations_article_id ON ai_conversations (article_id);
 
 -- ------------------------------------------------------------
--- 12. 验证查询
+-- 12. ai_memories 表（AI 长期记忆）
+-- ------------------------------------------------------------
+-- 对应 backend/app/modules/reading/models.py 中的 AiMemory 模型
+-- 当未摘要的对话消息超过 token 阈值时，最旧的一批消息会被
+-- LLM 压缩为摘要存入此表。memory_type 区分摘要/事实/错误/偏好。
+CREATE TABLE IF NOT EXISTS ai_memories (
+    id           BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id      BIGINT       NOT NULL REFERENCES users(id),
+    article_id   BIGINT       REFERENCES articles(id),
+    memory_type  VARCHAR(30)  NOT NULL,
+    content      TEXT         NOT NULL,
+    importance   FLOAT        NOT NULL DEFAULT 0.5,
+    token_count  INTEGER      NOT NULL DEFAULT 0,
+    is_active    BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- 索引
+CREATE INDEX IF NOT EXISTS ix_ai_memories_user_id    ON ai_memories (user_id);
+CREATE INDEX IF NOT EXISTS ix_ai_memories_article_id ON ai_memories (article_id);
+
+-- ------------------------------------------------------------
+-- 13. user_profiles 表（用户画像）
+-- ------------------------------------------------------------
+-- 对应 backend/app/modules/reading/models.py 中的 UserProfile 模型
+-- 每个用户一行，由 LLM 从积累的记忆中定期生成/更新。
+-- profile_summary 是自然语言画像，注入 system prompt 供 AI 个性化响应。
+CREATE TABLE IF NOT EXISTS user_profiles (
+    user_id          BIGINT       PRIMARY KEY REFERENCES users(id),
+    profile_summary  TEXT,
+    strengths        JSON         NOT NULL DEFAULT '[]',
+    weaknesses       JSON         NOT NULL DEFAULT '[]',
+    learning_style   VARCHAR(50),
+    interests        JSON         NOT NULL DEFAULT '[]',
+    common_mistakes  JSON         NOT NULL DEFAULT '[]',
+    message_count    INTEGER      NOT NULL DEFAULT 0,
+    last_updated_at  TIMESTAMPTZ,
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- ------------------------------------------------------------
+-- 14. 验证查询
 -- ------------------------------------------------------------
 -- 执行后可运行以下语句确认表和数据：
 --   SELECT id, email, username, english_level FROM users;

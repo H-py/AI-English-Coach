@@ -117,8 +117,9 @@
     "endedAt": "Ended",
     "completed": "Completed",
     "inProgress": "In progress",
-    "totalSessions": "{count} sessions",
-    "readAgain": "Read again"
+    "totalSessions": "{count} articles",
+    "readAgain": "Read again",
+    "readCount": "Read {count} times"
   },
   "profile": {
     "title": "Profile",

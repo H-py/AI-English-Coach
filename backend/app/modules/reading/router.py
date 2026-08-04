@@ -27,13 +27,14 @@ from typing import Optional
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
-from app.api.deps import CurrentUser, DbSession
+from app.api.deps import CurrentUser, DbSession, RedisClient
 from app.core.exceptions import BizException
 from app.core.response import ResponseModel, success
 from app.modules.reading.models import MasteryLevel
 from app.modules.reading.schemas import (
     AnalyzeSentenceRequest,
     ChatRequest,
+    ConversationListResponse,
     ExplainWordRequest,
     ParagraphSummaryRequest,
     ReadingHistoryCreate,
@@ -55,6 +56,7 @@ from app.modules.reading.service import (
     chat,
     end_reading,
     explain_word,
+    list_conversations,
     list_histories,
     list_sentences,
     list_words,
@@ -117,10 +119,11 @@ async def explain_word_endpoint(
     data: ExplainWordRequest,
     db: DbSession,
     current_user: CurrentUser,
+    redis: RedisClient,
 ) -> StreamingResponse:
     """Stream an AI explanation of a word as Server-Sent Events."""
     return StreamingResponse(
-        _sse_stream(explain_word(db, current_user, data)),
+        _sse_stream(explain_word(db, current_user, data, redis)),
         media_type="text/event-stream",
     )
 
@@ -133,10 +136,11 @@ async def analyze_sentence_endpoint(
     data: AnalyzeSentenceRequest,
     db: DbSession,
     current_user: CurrentUser,
+    redis: RedisClient,
 ) -> StreamingResponse:
     """Stream an AI structural analysis of a sentence as Server-Sent Events."""
     return StreamingResponse(
-        _sse_stream(analyze_sentence(db, current_user, data)),
+        _sse_stream(analyze_sentence(db, current_user, data, redis)),
         media_type="text/event-stream",
     )
 
@@ -149,10 +153,11 @@ async def translate_sentence_endpoint(
     data: SentenceTranslationRequest,
     db: DbSession,
     current_user: CurrentUser,
+    redis: RedisClient,
 ) -> StreamingResponse:
     """Stream an AI translation of a sentence as Server-Sent Events."""
     return StreamingResponse(
-        _sse_stream(translate_sentence(db, current_user, data)),
+        _sse_stream(translate_sentence(db, current_user, data, redis)),
         media_type="text/event-stream",
     )
 
@@ -165,10 +170,11 @@ async def paragraph_summary_endpoint(
     data: ParagraphSummaryRequest,
     db: DbSession,
     current_user: CurrentUser,
+    redis: RedisClient,
 ) -> StreamingResponse:
     """Stream an AI summary of a paragraph as Server-Sent Events."""
     return StreamingResponse(
-        _sse_stream(paragraph_summary(db, current_user, data)),
+        _sse_stream(paragraph_summary(db, current_user, data, redis)),
         media_type="text/event-stream",
     )
 
@@ -181,10 +187,11 @@ async def chat_endpoint(
     data: ChatRequest,
     db: DbSession,
     current_user: CurrentUser,
+    redis: RedisClient,
 ) -> StreamingResponse:
     """Stream an AI chat reply about the current article as Server-Sent Events."""
     return StreamingResponse(
-        _sse_stream(chat(db, current_user, data)),
+        _sse_stream(chat(db, current_user, data, redis)),
         media_type="text/event-stream",
     )
 
@@ -385,4 +392,26 @@ async def list_history_endpoint(
 ) -> dict:
     """List the current user's reading history with pagination."""
     result = await list_histories(db, current_user.id, page, page_size)
+    return success(result)
+
+
+# ---- AI conversation endpoints ---------------------------------------------
+
+
+@router.get(
+    "/conversations/{article_id}",
+    response_model=ResponseModel[ConversationListResponse],
+    summary="List chat history for an article",
+)
+async def list_conversations_endpoint(
+    article_id: int,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """List the current user's AI chat history for a specific article.
+
+    Returns up to 50 most recent messages in chronological order so the
+    frontend can restore a chat session after a page refresh.
+    """
+    result = await list_conversations(db, current_user.id, article_id)
     return success(result)

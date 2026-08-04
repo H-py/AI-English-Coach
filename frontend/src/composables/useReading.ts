@@ -380,6 +380,30 @@ export function useReading() {
   }
 
   // ============================================================
+  //  对话历史
+  // ============================================================
+
+  /**
+   * 加载指定文章的 AI 对话历史。
+   *
+   * 从后端拉取最近 50 条对话记录并填充到 chatMessages，使前端
+   * 在页面刷新或重新进入后仍能恢复之前的对话上下文。仅在
+   * chatMessages 为空时调用（首次切换到 chat 标签）。
+   */
+  async function loadChatHistory(articleId: number): Promise<void> {
+    try {
+      const res = await readingApi.getConversations(articleId)
+      chatMessages.value = res.items.map((msg) => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        timestamp: msg.created_at
+      }))
+    } catch {
+      // Errors are surfaced by the axios interceptor.
+    }
+  }
+
+  // ============================================================
   //  阅读历史
   // ============================================================
 
@@ -417,6 +441,8 @@ export function useReading() {
     saveSentence,
     // 面板清理
     clearAiPanel,
+    // 对话历史
+    loadChatHistory,
     // 阅读历史
     startReadingSession,
     endReadingSession
