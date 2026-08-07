@@ -24,6 +24,13 @@ class EnglishLevel(enum.Enum):
     advanced = "advanced"
 
 
+class UserRole(enum.Enum):
+    """User role for authorization: regular user or administrator."""
+
+    user = "user"
+    admin = "admin"
+
+
 class User(Base):
     """Application user account.
 
@@ -53,6 +60,12 @@ class User(Base):
         nullable=False,
         default=EnglishLevel.beginner,
         server_default="beginner",
+    )
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole),
+        nullable=False,
+        default=UserRole.user,
+        server_default="user",
     )
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"

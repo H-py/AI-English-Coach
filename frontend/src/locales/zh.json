@@ -199,5 +199,95 @@
     "wordSaved": "单词已收藏",
     "sentenceSaved": "句子已收藏",
     "readingStarted": "开始阅读"
+  },
+  "admin": {
+    "title": "管理后台",
+    "nav": {
+      "dashboard": "概览",
+      "articles": "文章管理",
+      "users": "用户管理",
+      "backToSite": "返回前台"
+    },
+    "dashboard": {
+      "totalUsers": "总用户数",
+      "totalArticles": "总文章数",
+      "publishedArticles": "已发布文章",
+      "totalViews": "总浏览量"
+    },
+    "article": {
+      "title": "文章管理",
+      "searchPlaceholder": "搜索文章标题...",
+      "create": "新建文章",
+      "edit": "编辑",
+      "delete": "删除",
+      "published": "已发布",
+      "draft": "草稿",
+      "deleteConfirm": "确定删除这篇文章吗？",
+      "deleted": "文章已删除",
+      "saved": "文章已保存",
+      "created": "文章已创建",
+      "updated": "文章已更新",
+      "publish": "发布",
+      "unpublish": "取消发布",
+      "viewCount": "浏览",
+      "fields": {
+        "title": "标题",
+        "content": "正文",
+        "summary": "摘要",
+        "source": "来源",
+        "difficulty": "难度",
+        "tags": "标签",
+        "readingTime": "阅读时长（分钟）",
+        "coverUrl": "封面图 URL",
+        "isPublished": "发布状态",
+        "wordCount": "词数"
+      },
+      "createTitle": "新建文章",
+      "editTitle": "编辑文章",
+      "save": "保存",
+      "cancel": "取消",
+      "autoWordCount": "词数将根据正文自动计算",
+      "allStatus": "全部",
+      "status": "状态",
+      "views": "浏览量",
+      "createdAt": "创建时间",
+      "actions": "操作",
+      "validation": {
+        "titleRequired": "请输入标题",
+        "contentRequired": "请输入正文"
+      }
+    },
+    "user": {
+      "title": "用户管理",
+      "searchPlaceholder": "搜索邮箱或用户名...",
+      "allRoles": "全部角色",
+      "role": "角色",
+      "status": "状态",
+      "active": "正常",
+      "disabled": "已禁用",
+      "actions": "操作",
+      "enable": "启用",
+      "disable": "禁用",
+      "setAdmin": "设为管理员",
+      "setUser": "设为普通用户",
+      "deleteConfirm": "确定删除这个用户吗？",
+      "deleted": "用户已删除",
+      "updated": "用户信息已更新",
+      "cannotDeleteSelf": "不能删除自己的账号",
+      "fields": {
+        "id": "ID",
+        "email": "邮箱",
+        "username": "用户名",
+        "role": "角色",
+        "englishLevel": "英语水平",
+        "isActive": "状态",
+        "createdAt": "注册时间",
+        "lastLoginAt": "上次登录"
+      },
+      "roleOptions": {
+        "user": "普通用户",
+        "admin": "管理员"
+      }
+    }
   }
 }

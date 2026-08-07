@@ -120,7 +120,7 @@ async def create_article(
         reading_time=data.reading_time,
         cover_url=data.cover_url,
         tags=data.tags,
-        is_published=True,
+        is_published=data.is_published,
     )
     db.add(article)
     await db.flush()
@@ -150,6 +150,73 @@ async def update_article(
     await db.flush()
     await db.refresh(article)
     return article
+
+
+async def list_all_articles(
+    db: AsyncSession,
+    search: Optional[str] = None,
+    difficulty: Optional[Difficulty] = None,
+    tag: Optional[str] = None,
+    is_published: Optional[bool] = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[Article], int]:
+    """List all articles (including unpublished) with optional filtering, search, and pagination.
+
+    Intended for admin use. Unlike :func:`list_articles`, this function does
+    not filter by ``is_published`` by default, allowing administrators to
+    manage draft and unpublished content. Supports a case-insensitive
+    substring search on the article title.
+
+    Args:
+        db: The active async session.
+        search: Optional case-insensitive substring to match against the title.
+        difficulty: Optional CEFR difficulty level to filter by.
+        tag: Optional tag string to filter by (articles whose ``tags``
+            JSON array contains the given tag).
+        is_published: Optional flag to filter by publication status.
+        page: The 1-based page number.
+        page_size: The number of items per page.
+
+    Returns:
+        A tuple of ``(items, total)`` where ``items`` is the list of
+        :class:`Article` instances for the requested page and ``total``
+        is the total count of matching articles.
+    """
+    conditions = []
+
+    if search is not None and search.strip():
+        conditions.append(Article.title.ilike(f"%{search}%"))
+
+    if difficulty is not None:
+        conditions.append(Article.difficulty == difficulty)
+
+    if tag is not None:
+        conditions.append(
+            cast(Article.tags, JSONB).contains([tag])
+        )
+
+    if is_published is not None:
+        conditions.append(Article.is_published.is_(is_published))
+
+    # Count query for total matches.
+    count_stmt = select(func.count()).select_from(Article).where(*conditions)
+    total_result = await db.execute(count_stmt)
+    total = total_result.scalar() or 0
+
+    # Data query with ordering and pagination.
+    offset = (page - 1) * page_size
+    data_stmt = (
+        select(Article)
+        .where(*conditions)
+        .order_by(Article.created_at.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
+    data_result = await db.execute(data_stmt)
+    items = list(data_result.scalars().all())
+
+    return items, total
 
 
 async def delete_article(db: AsyncSession, article: Article) -> None:

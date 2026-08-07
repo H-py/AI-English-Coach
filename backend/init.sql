@@ -27,6 +27,19 @@ BEGIN
 END$$;
 
 -- ------------------------------------------------------------
+-- 1b. 枚举类型：userrole
+-- ------------------------------------------------------------
+-- 对应 backend/app/modules/users/models.py 中的 UserRole 枚举
+-- user  普通用户
+-- admin 管理员
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'userrole') THEN
+        CREATE TYPE userrole AS ENUM ('user', 'admin');
+    END IF;
+END$$;
+
+-- ------------------------------------------------------------
 -- 2. users 表
 -- ------------------------------------------------------------
 -- 对应 backend/app/modules/users/models.py 中的 User 模型
@@ -37,6 +50,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash   VARCHAR(255) NOT NULL,
     avatar_url      VARCHAR(512),
     english_level   englishlevel NOT NULL DEFAULT 'beginner',
+    role            userrole     NOT NULL DEFAULT 'user',
     is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
     last_login_at   TIMESTAMPTZ,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),

@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # ---- Admin (initial admin account for init script) ----
+    ADMIN_EMAIL: str = "admin@example.com"
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = "admin123456"
+
     # ---- CORS ----
     # Accepts a comma-separated list of origins in the env var.
     CORS_ORIGINS: Union[str, List[str]] = ["http://localhost:5173"]

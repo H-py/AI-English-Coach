@@ -36,6 +36,7 @@ class ArticleCreate(ArticleBase):
 
     summary: Optional[str] = None
     reading_time: Optional[int] = None
+    is_published: bool = True
 
 
 class ArticleUpdate(BaseModel):

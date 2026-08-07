@@ -28,6 +28,9 @@ export const useAuthStore = defineStore('auth', () => {
   // 是否已认证：基于 user 是否存在判断
   const isAuthenticated = computed(() => user.value !== null)
 
+  // 是否为管理员：基于 user.role === 'admin' 判断
+  const isAdmin = computed(() => user.value?.role === 'admin')
+
   /** 写入登录态：保存 token 与用户信息 */
   function setAuth(data: LoginResponse): void {
     setAccessToken(data.access_token)
@@ -69,6 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     // getters
     isAuthenticated,
+    isAdmin,
     // actions
     setAuth,
     setUser,

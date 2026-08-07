@@ -13,6 +13,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // 加上这一行，解决cpolar 403报错
+    allowedHosts: true,
     // 开发环境代理：把 `/api` 转发到后端服务，避免跨域。
     // 主配置仍以 VITE_API_BASE_URL 为准；该代理让相对路径 `/api` 也能直接工作。
     proxy: {

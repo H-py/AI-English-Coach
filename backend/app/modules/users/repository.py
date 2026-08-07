@@ -9,10 +9,10 @@ which wraps each request in a single transaction.
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.users.models import User
+from app.modules.users.models import User, UserRole
 
 
 async def get_user_by_id(db: AsyncSession, user_id: int) -> Optional[User]:
@@ -58,7 +58,11 @@ async def get_user_by_username(db: AsyncSession, username: str) -> Optional[User
 
 
 async def create_user(
-    db: AsyncSession, email: str, username: str, password_hash: str
+    db: AsyncSession,
+    email: str,
+    username: str,
+    password_hash: str,
+    role: UserRole = UserRole.user,
 ) -> User:
     """Create and persist a new user.
 
@@ -71,11 +75,17 @@ async def create_user(
         email: The user's email address.
         username: The user's display name.
         password_hash: The pre-hashed password (never plain text).
+        role: The user's role (defaults to ``user``).
 
     Returns:
         The newly created :class:`User` with refreshed attributes.
     """
-    user = User(email=email, username=username, password_hash=password_hash)
+    user = User(
+        email=email,
+        username=username,
+        password_hash=password_hash,
+        role=role,
+    )
     db.add(user)
     await db.flush()
     await db.refresh(user)
@@ -118,3 +128,70 @@ async def update_last_login(db: AsyncSession, user: User) -> User:
     await db.flush()
     await db.refresh(user)
     return user
+
+
+async def list_users(
+    db: AsyncSession,
+    search: Optional[str] = None,
+    role: Optional[UserRole] = None,
+    is_active: Optional[bool] = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[User], int]:
+    """List users with optional filtering, search, and pagination.
+
+    Args:
+        db: The active async session.
+        search: Optional case-insensitive substring to match against email
+            or username.
+        role: Optional role to filter by.
+        is_active: Optional active status to filter by.
+        page: The 1-based page number.
+        page_size: The number of items per page.
+
+    Returns:
+        A tuple of ``(items, total)``.
+    """
+    conditions = []
+
+    if search is not None and search.strip():
+        conditions.append(
+            or_(
+                User.email.ilike(f"%{search}%"),
+                User.username.ilike(f"%{search}%"),
+            )
+        )
+
+    if role is not None:
+        conditions.append(User.role == role)
+
+    if is_active is not None:
+        conditions.append(User.is_active.is_(is_active))
+
+    count_stmt = select(func.count()).select_from(User).where(*conditions)
+    total_result = await db.execute(count_stmt)
+    total = total_result.scalar() or 0
+
+    offset = (page - 1) * page_size
+    data_stmt = (
+        select(User)
+        .where(*conditions)
+        .order_by(User.created_at.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
+    data_result = await db.execute(data_stmt)
+    items = list(data_result.scalars().all())
+
+    return items, total
+
+
+async def delete_user(db: AsyncSession, user: User) -> None:
+    """Delete a user from the database.
+
+    Args:
+        db: The active async session.
+        user: The :class:`User` instance to delete.
+    """
+    await db.delete(user)
+    await db.flush()

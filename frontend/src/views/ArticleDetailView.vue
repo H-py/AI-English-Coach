@@ -298,6 +298,8 @@ onUnmounted(async () => {
   white-space: pre-wrap;
   word-break: break-word;
   cursor: text;
+  text-align: justify;
+  text-justify: inter-word;
 }
 
 .article-content :deep(p) {

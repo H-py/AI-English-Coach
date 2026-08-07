@@ -6,4 +6,5 @@
 export { default as request, http } from './request'
 export { authApi } from './auth'
 export { articleApi } from './article'
+export { adminApi } from './admin'
 export { readingApi, streamReading } from './reading'

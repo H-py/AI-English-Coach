@@ -11,7 +11,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from app.modules.users.models import EnglishLevel
+from app.modules.users.models import EnglishLevel, UserRole
 
 
 class UserBase(BaseModel):
@@ -34,6 +34,7 @@ class UserOut(UserBase):
     id: int
     avatar_url: Optional[str] = None
     english_level: EnglishLevel
+    role: UserRole
     is_active: bool
     created_at: datetime
     last_login_at: Optional[datetime] = None

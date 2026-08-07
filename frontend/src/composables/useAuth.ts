@@ -14,11 +14,11 @@ export function useAuth() {
   const store = useAuthStore()
   const router = useRouter()
 
-  /** 登录：成功后写入认证态并跳转首页 */
+  /** 登录：成功后写入认证态并根据角色跳转 */
   async function login(payload: LoginPayload): Promise<void> {
     const data = await authApi.login(payload)
     store.setAuth(data)
-    await router.push('/')
+    await router.push(data.user.role === 'admin' ? '/admin' : '/')
   }
 
   /** 注册：成功后写入认证态并跳转首页 */

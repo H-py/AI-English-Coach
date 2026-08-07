@@ -7,6 +7,7 @@ prefix, giving the frontend a single, stable base URL of
 
 from fastapi import APIRouter
 
+from app.modules.admin.router import router as admin_router
 from app.modules.article.router import router as article_router
 from app.modules.auth.router import router as auth_router
 from app.modules.health.router import router as health_router
@@ -19,5 +20,6 @@ api_router.include_router(auth_router)
 api_router.include_router(users_router)
 api_router.include_router(article_router)
 api_router.include_router(reading_router)
+api_router.include_router(admin_router)
 
 __all__ = ["api_router"]

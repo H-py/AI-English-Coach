@@ -5,6 +5,9 @@
 /** 用户英语水平等级 */
 export type EnglishLevel = 'beginner' | 'intermediate' | 'advanced'
 
+/** 用户角色 */
+export type UserRole = 'user' | 'admin'
+
 /** 用户信息 */
 export interface User {
   id: number
@@ -12,6 +15,7 @@ export interface User {
   username: string
   avatar_url: string | null
   english_level: EnglishLevel
+  role: UserRole
   is_active: boolean
   created_at: string
   last_login_at: string | null

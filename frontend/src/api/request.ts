@@ -5,7 +5,7 @@ import axios, {
 } from 'axios'
 import { createDiscreteApi } from 'naive-ui'
 import type { ResponseResult } from '@/types/api'
-import { getAccessToken, clearTokens } from '@/utils'
+import { getAccessToken, clearAllAuthData } from '@/utils'
 
 /**
  * Naive UI 的 message 等离散 API 需要在 Provider 树内使用，
@@ -42,7 +42,7 @@ request.interceptors.response.use(
 
     // code === 0 成功：只把真实业务数据 data 返回给调用方
     if (res.code === 0) {
-      return res.data
+      return res.data as any
     }
 
     // 业务错误：用 message 提示并 reject
@@ -52,9 +52,9 @@ request.interceptors.response.use(
   (error) => {
     const status = error?.response?.status
 
-    // HTTP 401：清除本地 token 并跳转登录页
+    // HTTP 401：清除本地认证态（token + 用户信息）并跳转登录页
     if (status === 401) {
-      clearTokens()
+      clearAllAuthData()
       window.location.href = '/login'
       return Promise.reject(error)
     }

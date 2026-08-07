@@ -4,6 +4,7 @@
 
 const ACCESS_TOKEN_KEY = 'arc_access_token'
 const REFRESH_TOKEN_KEY = 'arc_refresh_token'
+const USER_KEY = 'arc_user'
 
 // ---- Access Token ----
 export function getAccessToken(): string | null {
@@ -27,6 +28,17 @@ export function setRefreshToken(token: string): void {
 export function clearTokens(): void {
   localStorage.removeItem(ACCESS_TOKEN_KEY)
   localStorage.removeItem(REFRESH_TOKEN_KEY)
+}
+
+/** 清除本地存储的用户信息（与 auth store 的 useStorage key 一致） */
+export function clearUserData(): void {
+  localStorage.removeItem(USER_KEY)
+}
+
+/** 清除全部认证相关数据：token + 用户信息 */
+export function clearAllAuthData(): void {
+  clearTokens()
+  clearUserData()
 }
 
 // ---- 兼容别名 ----

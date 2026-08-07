@@ -199,5 +199,95 @@
     "wordSaved": "Word saved",
     "sentenceSaved": "Sentence saved",
     "readingStarted": "Reading started"
+  },
+  "admin": {
+    "title": "Admin Panel",
+    "nav": {
+      "dashboard": "Dashboard",
+      "articles": "Articles",
+      "users": "Users",
+      "backToSite": "Back to Site"
+    },
+    "dashboard": {
+      "totalUsers": "Total Users",
+      "totalArticles": "Total Articles",
+      "publishedArticles": "Published",
+      "totalViews": "Total Views"
+    },
+    "article": {
+      "title": "Article Management",
+      "searchPlaceholder": "Search article title...",
+      "create": "New Article",
+      "edit": "Edit",
+      "delete": "Delete",
+      "published": "Published",
+      "draft": "Draft",
+      "deleteConfirm": "Are you sure you want to delete this article?",
+      "deleted": "Article deleted",
+      "saved": "Article saved",
+      "created": "Article created",
+      "updated": "Article updated",
+      "publish": "Publish",
+      "unpublish": "Unpublish",
+      "viewCount": "views",
+      "fields": {
+        "title": "Title",
+        "content": "Content",
+        "summary": "Summary",
+        "source": "Source",
+        "difficulty": "Difficulty",
+        "tags": "Tags",
+        "readingTime": "Reading time (min)",
+        "coverUrl": "Cover image URL",
+        "isPublished": "Published",
+        "wordCount": "Word count"
+      },
+      "createTitle": "Create Article",
+      "editTitle": "Edit Article",
+      "save": "Save",
+      "cancel": "Cancel",
+      "autoWordCount": "Word count is auto-calculated from content",
+      "allStatus": "All",
+      "status": "Status",
+      "views": "Views",
+      "createdAt": "Created At",
+      "actions": "Actions",
+      "validation": {
+        "titleRequired": "Please enter a title",
+        "contentRequired": "Please enter the content"
+      }
+    },
+    "user": {
+      "title": "User Management",
+      "searchPlaceholder": "Search email or username...",
+      "allRoles": "All roles",
+      "role": "Role",
+      "status": "Status",
+      "active": "Active",
+      "disabled": "Disabled",
+      "actions": "Actions",
+      "enable": "Enable",
+      "disable": "Disable",
+      "setAdmin": "Set as Admin",
+      "setUser": "Set as User",
+      "deleteConfirm": "Are you sure you want to delete this user?",
+      "deleted": "User deleted",
+      "updated": "User updated",
+      "cannotDeleteSelf": "Cannot delete your own account",
+      "fields": {
+        "id": "ID",
+        "email": "Email",
+        "username": "Username",
+        "role": "Role",
+        "englishLevel": "English Level",
+        "isActive": "Status",
+        "createdAt": "Joined",
+        "lastLoginAt": "Last Login"
+      },
+      "roleOptions": {
+        "user": "User",
+        "admin": "Admin"
+      }
+    }
   }
 }
