@@ -1,7 +1,7 @@
 /**
  * 阅读模块类型定义。
  *
- * 与后端 `/api/v1/reading` 系列接口一一对应，
+ * 与后端 `/api/v1/reading` 和 `/api/v1/ai` 系列接口一一对应，
  * 字段命名采用 snake_case 以直接映射后端 JSON（后端为 Python），
  * 前端不做额外的 camelCase 转换。
  */
@@ -72,21 +72,25 @@ export interface ExplainWordPayload {
   word: string
   context: string
   article_id: number
+  history_id?: number
 }
 
 export interface AnalyzeSentencePayload {
   sentence: string
   article_id: number
+  history_id?: number
 }
 
 export interface ParagraphSummaryPayload {
   paragraph: string
   article_id: number
+  history_id?: number
 }
 
 export interface ChatPayload {
   message: string
   article_id: number
+  history_id?: number
 }
 
 // ---- 非流式请求 payload ----
@@ -111,4 +115,64 @@ export interface UpdateWordPayload {
 
 export interface UpdateSentencePayload {
   note?: string
+}
+
+// ---- 阅读总结 ----
+
+/** 活动统计数据 */
+export interface ActivityStats {
+  word_count: number
+  sentence_count: number
+  chat_count: number
+  duration_seconds: number | null
+}
+
+/** 阅读总结 */
+export interface ReadingSummary {
+  id: number
+  history_id: number
+  article_id: number
+  content: string
+  activity_stats: ActivityStats
+  created_at: string
+}
+
+// ---- 阅读练习题 ----
+
+/** 练习题题目 */
+export interface QuizQuestion {
+  id: number
+  question: string
+  options: string[]
+  correct_answer: string
+  explanation: string
+}
+
+/** 用户答题结果（提交后返回） */
+export interface QuizAnswerResult {
+  question_id: number
+  user_answer: string
+  correct_answer: string
+  is_correct: boolean
+  explanation: string
+}
+
+/** 练习题 */
+export interface ReadingQuiz {
+  id: number
+  history_id: number
+  article_id: number
+  questions: QuizQuestion[]
+  user_answers: { question_id: number; user_answer: string; is_correct: boolean }[] | null
+  score: number | null
+  total: number
+  created_at: string
+}
+
+/** 提交练习题后的响应 */
+export interface QuizSubmitResponse {
+  quiz_id: number
+  score: number
+  total: number
+  results: QuizAnswerResult[]
 }

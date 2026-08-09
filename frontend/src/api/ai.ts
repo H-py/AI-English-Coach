@@ -1,12 +1,12 @@
 import { http } from './request'
 import { getAccessToken } from '@/utils'
-import type { ConversationMessage } from '@/types/reading'
+import type { ConversationMessage, ReadingSummary, ReadingQuiz, QuizSubmitResponse } from '@/types/reading'
 
 /**
  * AI 模块 API。
  *
  * 分为两部分：
- *  1. aiApi —— 非流式接口（对话历史），使用 http 封装，
+ *  1. aiApi —— 非流式接口（对话历史 / 阅读总结 / 练习题），使用 http 封装，
  *     响应信封已由拦截器自动解包，直接返回业务数据。
  *  2. streamAI —— SSE 流式接口（AI 解释 / 分析 / 翻译 / 摘要 / 问答），
  *     返回 text/event-stream，不能用 axios 封装，需用原生 fetch +
@@ -27,6 +27,35 @@ export const aiApi = {
   /** 获取指定文章的 AI 对话历史（最近 50 条，按时间正序） */
   getConversations(articleId: number): Promise<{ items: ConversationMessage[]; total: number }> {
     return http.get(`/ai/conversations/${articleId}`)
+  },
+
+  // ---- 阅读总结 ----
+
+  /** 生成某次阅读会话的 AI 总结 */
+  generateSummary(historyId: number): Promise<ReadingSummary> {
+    return http.post('/ai/summary', { history_id: historyId })
+  },
+
+  /** 获取某次阅读会话的已有总结（无总结时返回 null） */
+  getSummary(historyId: number): Promise<ReadingSummary | null> {
+    return http.get(`/ai/summary/${historyId}`)
+  },
+
+  // ---- 阅读练习题 ----
+
+  /** 基于文章生成练习题 */
+  generateQuiz(articleId: number, historyId: number): Promise<ReadingQuiz> {
+    return http.post('/ai/quiz', { article_id: articleId, history_id: historyId })
+  },
+
+  /** 获取某次阅读会话的最新练习题（无练习题时返回 null） */
+  getLatestQuiz(historyId: number): Promise<ReadingQuiz | null> {
+    return http.get(`/ai/quiz/${historyId}`)
+  },
+
+  /** 提交练习题答案并获取判分结果 */
+  submitQuiz(quizId: number, answers: { question_id: number; user_answer: string }[]): Promise<QuizSubmitResponse> {
+    return http.post(`/ai/quiz/${quizId}/submit`, { answers })
   }
 }
 
@@ -47,7 +76,7 @@ export const aiApi = {
  * 通过回调将内容片段、完成、错误事件传递给调用方。
  *
  * @param endpoint  端点名称（不含 /ai/ 前缀），如 'explain-word'
- * @param body      POST 请求体
+ * @param body      POST 请求体（可包含 history_id 用于活动跟踪）
  * @param callbacks 回调集合：onChunk（内容片段）、onDone（完成）、onError（错误）
  * @param signal    可选的 AbortSignal，用于取消请求（新请求发起时取消旧请求）
  */

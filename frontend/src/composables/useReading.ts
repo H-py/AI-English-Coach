@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { readingApi } from '@/api/reading'
 import { aiApi, streamAI } from '@/api/ai'
-import type { ChatMessage } from '@/types/reading'
+import type { ChatMessage, ReadingSummary, ReadingQuiz, QuizSubmitResponse } from '@/types/reading'
 
 /**
  * 阅读页 AI 交互 composable。
@@ -66,7 +66,8 @@ export function useReading() {
   async function explainWord(
     word: string,
     context: string,
-    articleId: number
+    articleId: number,
+    historyId?: number | null
   ): Promise<void> {
     const requestId = ++requestCounter
     abortOngoing()
@@ -82,7 +83,7 @@ export function useReading() {
     try {
       await streamAI(
         'explain-word',
-        { word, context, article_id: articleId },
+        { word, context, article_id: articleId, ...(historyId ? { history_id: historyId } : {}) },
         {
           onChunk: (content) => {
             if (isCurrent()) aiContent.value += content
@@ -119,7 +120,8 @@ export function useReading() {
    */
   async function analyzeSentence(
     sentence: string,
-    articleId: number
+    articleId: number,
+    historyId?: number | null
   ): Promise<void> {
     const requestId = ++requestCounter
     abortOngoing()
@@ -136,7 +138,7 @@ export function useReading() {
     try {
       await streamAI(
         'analyze-sentence',
-        { sentence, article_id: articleId },
+        { sentence, article_id: articleId, ...(historyId ? { history_id: historyId } : {}) },
         {
           onChunk: (content) => {
             if (isCurrent()) aiContent.value += content
@@ -172,7 +174,8 @@ export function useReading() {
    */
   async function translateSentence(
     sentence: string,
-    articleId: number
+    articleId: number,
+    historyId?: number | null
   ): Promise<void> {
     const requestId = ++requestCounter
     abortOngoing()
@@ -189,7 +192,7 @@ export function useReading() {
     try {
       await streamAI(
         'translate-sentence',
-        { sentence, article_id: articleId },
+        { sentence, article_id: articleId, ...(historyId ? { history_id: historyId } : {}) },
         {
           onChunk: (content) => {
             if (isCurrent()) aiContent.value += content
@@ -224,7 +227,8 @@ export function useReading() {
    */
   async function paragraphSummary(
     paragraph: string,
-    articleId: number
+    articleId: number,
+    historyId?: number | null
   ): Promise<void> {
     const requestId = ++requestCounter
     abortOngoing()
@@ -240,7 +244,7 @@ export function useReading() {
     try {
       await streamAI(
         'paragraph-summary',
-        { paragraph, article_id: articleId },
+        { paragraph, article_id: articleId, ...(historyId ? { history_id: historyId } : {}) },
         {
           onChunk: (content) => {
             if (isCurrent()) aiContent.value += content
@@ -274,7 +278,7 @@ export function useReading() {
    * 调用前先 push user 消息到 chatMessages，再 push 空 assistant 消息，
    * 流式内容追加到最后一条 assistant 消息的 content。
    */
-  async function sendChat(message: string, articleId: number): Promise<void> {
+  async function sendChat(message: string, articleId: number, historyId?: number | null): Promise<void> {
     const requestId = ++requestCounter
     abortOngoing()
     const controller = new AbortController()
@@ -300,7 +304,7 @@ export function useReading() {
     try {
       await streamAI(
         'chat',
-        { message, article_id: articleId },
+        { message, article_id: articleId, ...(historyId ? { history_id: historyId } : {}) },
         {
           onChunk: (content) => {
             if (!isCurrent()) return
@@ -374,10 +378,14 @@ export function useReading() {
   //  面板清理
   // ============================================================
 
-  /** 清空 AI 面板内容（aiContent + chatMessages） */
+  /** 清空 AI 面板内容（aiContent + chatMessages + summary + quiz） */
   function clearAiPanel(): void {
     aiContent.value = ''
     chatMessages.value = []
+    summary.value = null
+    quiz.value = null
+    quizResults.value = null
+    quizAnswers.value = {}
   }
 
   // ============================================================
@@ -425,6 +433,111 @@ export function useReading() {
     })
   }
 
+  // ============================================================
+  //  阅读总结 & 练习题
+  // ============================================================
+
+  /** 当前阅读会话的总结 */
+  const summary = ref<ReadingSummary | null>(null)
+  /** 是否正在生成总结 */
+  const generatingSummary = ref(false)
+
+  /** 当前练习题 */
+  const quiz = ref<ReadingQuiz | null>(null)
+  /** 是否正在生成练习题 */
+  const generatingQuiz = ref(false)
+  /** 是否正在提交答案 */
+  const submittingQuiz = ref(false)
+  /** 提交后的判分结果 */
+  const quizResults = ref<QuizSubmitResponse | null>(null)
+  /** 用户每道题的作答（临时存储，提交前使用） */
+  const quizAnswers = ref<Record<number, string>>({})
+
+  /** 生成或重新生成阅读总结 */
+  async function generateSummary(historyId: number): Promise<void> {
+    generatingSummary.value = true
+    try {
+      summary.value = await aiApi.generateSummary(historyId)
+    } catch {
+      // 错误由 axios 拦截器统一提示
+    } finally {
+      generatingSummary.value = false
+    }
+  }
+
+  /** 加载已有总结（若无总结则设为 null） */
+  async function loadSummary(historyId: number): Promise<void> {
+    try {
+      summary.value = await aiApi.getSummary(historyId)
+    } catch {
+      // 错误由 axios 拦截器统一提示
+    }
+  }
+
+  /** 生成练习题 */
+  async function generateQuiz(articleId: number, historyId: number): Promise<void> {
+    generatingQuiz.value = true
+    try {
+      quiz.value = await aiApi.generateQuiz(articleId, historyId)
+      quizResults.value = null
+      quizAnswers.value = {}
+    } catch {
+      // 错误由 axios 拦截器统一提示
+    } finally {
+      generatingQuiz.value = false
+    }
+  }
+
+  /** 加载已有练习题（若已提交则重建判分结果） */
+  async function loadLatestQuiz(historyId: number): Promise<void> {
+    try {
+      quiz.value = await aiApi.getLatestQuiz(historyId)
+      if (quiz.value && quiz.value.user_answers) {
+        // 已提交过的练习题，重建结果视图
+        quizResults.value = {
+          quiz_id: quiz.value.id,
+          score: quiz.value.score ?? 0,
+          total: quiz.value.total,
+          results: quiz.value.questions.map((q) => {
+            const ans = quiz.value!.user_answers!.find(
+              (a) => a.question_id === q.id
+            )
+            return {
+              question_id: q.id,
+              user_answer: ans?.user_answer ?? '',
+              correct_answer: q.correct_answer,
+              is_correct: ans?.is_correct ?? false,
+              explanation: q.explanation,
+            }
+          }),
+        }
+        // 恢复用户选项
+        for (const ans of quiz.value.user_answers) {
+          quizAnswers.value[ans.question_id] = ans.user_answer
+        }
+      }
+    } catch {
+      // 错误由 axios 拦截器统一提示
+    }
+  }
+
+  /** 提交练习题答案 */
+  async function submitQuizAnswers(quizId: number): Promise<void> {
+    if (!quiz.value) return
+    submittingQuiz.value = true
+    try {
+      const answers = quiz.value.questions.map((q) => ({
+        question_id: q.id,
+        user_answer: quizAnswers.value[q.id] ?? '',
+      }))
+      quizResults.value = await aiApi.submitQuiz(quizId, answers)
+    } catch {
+      // 错误由 axios 拦截器统一提示
+    } finally {
+      submittingQuiz.value = false
+    }
+  }
+
   return {
     // 状态
     streaming,
@@ -446,6 +559,20 @@ export function useReading() {
     loadChatHistory,
     // 阅读历史
     startReadingSession,
-    endReadingSession
+    endReadingSession,
+    // 阅读总结
+    summary,
+    generatingSummary,
+    generateSummary,
+    loadSummary,
+    // 练习题
+    quiz,
+    generatingQuiz,
+    submittingQuiz,
+    quizResults,
+    quizAnswers,
+    generateQuiz,
+    loadLatestQuiz,
+    submitQuizAnswers
   }
 }

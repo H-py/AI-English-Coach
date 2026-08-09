@@ -2,7 +2,7 @@
 
 提供五个 AI 流式端点（Server-Sent Events），分别用于单词解释、
 句子分析、句子翻译、段落摘要和文章聊天；此外还提供对话历史的
-查询端点。所有端点均需认证。
+查询端点、阅读总结和练习题的端点。所有端点均需认证。
 
 SSE 协议
 -------------
@@ -34,14 +34,25 @@ from app.modules.ai.schemas import (
     ConversationListResponse,
     ExplainWordRequest,
     ParagraphSummaryRequest,
+    QuizRequest,
+    QuizSubmitRequest,
+    QuizSubmitResponse,
+    ReadingSummaryOut,
+    ReadingQuizOut,
     SentenceTranslationRequest,
+    SummaryRequest,
 )
 from app.modules.ai.service import (
     analyze_sentence,
     chat,
     explain_word,
+    generate_quiz,
+    generate_summary,
+    get_latest_quiz,
+    get_summary,
     list_conversations,
     paragraph_summary,
+    submit_quiz,
     translate_sentence,
 )
 
@@ -188,4 +199,102 @@ async def list_conversations_endpoint(
     恢复聊天会话。
     """
     result = await list_conversations(db, current_user.id, article_id)
+    return success(result)
+
+
+# ---- 阅读总结端点 -----------------------------------------------------------
+
+
+@router.post(
+    "/summary",
+    response_model=ResponseModel[ReadingSummaryOut],
+    summary="Generate reading summary",
+)
+async def generate_summary_endpoint(
+    data: SummaryRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """生成某次阅读会话的 AI 总结。
+
+    基于用户在本次阅读中的 AI 交互活动（查词、分析句子、问答等）和
+    阅读时长，由 LLM 生成总结。同一会话重新生成会覆盖旧的总结。
+    """
+    result = await generate_summary(db, current_user, data)
+    return success(result)
+
+
+@router.get(
+    "/summary/{history_id}",
+    response_model=ResponseModel[ReadingSummaryOut | None],
+    summary="Get reading summary",
+)
+async def get_summary_endpoint(
+    history_id: int,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """获取某次阅读会话的已有总结。
+
+    若尚未生成总结，返回 ``null``。
+    """
+    result = await get_summary(db, current_user.id, history_id)
+    return success(result)
+
+
+# ---- 阅读练习题端点 ---------------------------------------------------------
+
+
+@router.post(
+    "/quiz",
+    response_model=ResponseModel[ReadingQuizOut],
+    summary="Generate reading quiz",
+)
+async def generate_quiz_endpoint(
+    data: QuizRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """基于文章生成 3-5 道阅读理解练习题。
+
+    每道题包含题目、选项、正确答案和解析。
+    """
+    result = await generate_quiz(db, current_user, data)
+    return success(result)
+
+
+@router.get(
+    "/quiz/{history_id}",
+    response_model=ResponseModel[ReadingQuizOut | None],
+    summary="Get latest quiz",
+)
+async def get_latest_quiz_endpoint(
+    history_id: int,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """获取某次阅读会话的最新一份练习题。
+
+    若尚未生成练习题，返回 ``null``。
+    """
+    result = await get_latest_quiz(db, current_user.id, history_id)
+    return success(result)
+
+
+@router.post(
+    "/quiz/{quiz_id}/submit",
+    response_model=ResponseModel[QuizSubmitResponse],
+    summary="Submit quiz answers",
+)
+async def submit_quiz_endpoint(
+    quiz_id: int,
+    data: QuizSubmitRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """提交练习题答案并获取判分结果。
+
+    返回每道题的判分详情，包括是否正确、正确答案和解析。
+    """
+    result = await submit_quiz(db, current_user.id, quiz_id, data)
     return success(result)

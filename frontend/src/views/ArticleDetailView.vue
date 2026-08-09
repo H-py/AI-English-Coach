@@ -281,6 +281,7 @@ onUnmounted(async () => {
       <aside v-if="article" class="hidden w-[420px] shrink-0 overflow-hidden lg:block">
         <AiPanel
           :article-id="article.id"
+          :history-id="historyId"
           :selected-text="selectedText"
           :selected-context="selectedContext"
         />

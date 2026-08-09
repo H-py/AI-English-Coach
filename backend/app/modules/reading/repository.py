@@ -338,11 +338,15 @@ async def delete_sentence(
 async def get_or_create_history(
     db: AsyncSession, user_id: int, article_id: int
 ) -> ReadingHistory:
-    """为用户新增或更新（upsert）一条阅读历史记录。
+    """为用户获取或创建阅读会话记录（upsert）。
 
-    如果用户已存在针对 ``article_id`` 的历史记录，则将 ``read_count``
-    加 1，并把 ``started_at`` 重置为当前时间（开启新会话），同时清空
-    ``ended_at`` 和 ``duration_seconds``。否则创建一条新记录。
+    每个用户对每篇文章只保留一条记录（唯一约束）。若记录已存在，
+    则更新 ``started_at`` 为当前时间、重置 ``ended_at`` 和
+    ``duration_seconds``、递增 ``read_count``，标记新一次阅读会话
+    的开始。若不存在则创建新记录。
+
+    AI 活动日志和对话消息通过 ``history_id`` 关联到此记录，生成阅读
+    总结时按 ``created_at >= started_at`` 过滤以隔离每次会话的数据。
 
     Args:
         db: 当前活跃的异步会话。
@@ -361,15 +365,20 @@ async def get_or_create_history(
     existing = result.scalars().first()
 
     if existing is not None:
-        existing.read_count += 1
+        # 重新阅读：更新 started_at，重置会话数据，递增 read_count。
         existing.started_at = func.now()
         existing.ended_at = None
         existing.duration_seconds = None
+        existing.read_count += 1
         await db.flush()
         await db.refresh(existing)
         return existing
 
-    history = ReadingHistory(user_id=user_id, article_id=article_id)
+    # 首次阅读：创建新记录。
+    history = ReadingHistory(
+        user_id=user_id,
+        article_id=article_id,
+    )
     db.add(history)
     await db.flush()
     await db.refresh(history)

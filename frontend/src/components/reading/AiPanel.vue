@@ -36,6 +36,8 @@ hljs.registerLanguage('json', json)
 const props = defineProps<{
   /** 当前文章 ID */
   articleId: number
+  /** 当前阅读会话的 history ID（用于关联活动日志和生成总结） */
+  historyId: number | null
   /** 用户选中的文本 */
   selectedText: string
   /** 选中文本所在的完整句子（作为 AI 上下文） */
@@ -57,7 +59,21 @@ const {
   sendChat,
   saveWord,
   saveSentence,
-  loadChatHistory
+  loadChatHistory,
+  // 阅读总结
+  summary,
+  generatingSummary,
+  generateSummary,
+  loadSummary,
+  // 练习题
+  quiz,
+  generatingQuiz,
+  submittingQuiz,
+  quizResults,
+  quizAnswers,
+  generateQuiz,
+  loadLatestQuiz,
+  submitQuizAnswers
 } = useReading()
 
 // ---- markdown 渲染器 ----
@@ -89,7 +105,7 @@ const renderedContent = computed(() => renderMarkdown(aiContent.value))
 
 // ---- 标签页 ----
 
-const activeTab = ref<'explain' | 'chat'>('explain')
+const activeTab = ref<'explain' | 'chat' | 'summary'>('explain')
 
 // ---- 选中文本判断 ----
 
@@ -136,7 +152,7 @@ watch(
 
     if (isWord.value) {
       // 单词 / 短语：自动触发解释
-      explainWord(newText, props.selectedContext || newText, props.articleId)
+      explainWord(newText, props.selectedContext || newText, props.articleId, props.historyId)
     }
     // 长句（>= 3 词）：不自动触发，显示选项按钮让用户选择
   }
@@ -155,10 +171,10 @@ function handleExplain(): void {
   if (!props.selectedText) return
   if (isWord.value) {
     wordSaved.value = false
-    explainWord(props.selectedText, props.selectedContext || props.selectedText, props.articleId)
+    explainWord(props.selectedText, props.selectedContext || props.selectedText, props.articleId, props.historyId)
   } else {
     sentenceSaved.value = false
-    translateSentence(props.selectedText, props.articleId)
+    translateSentence(props.selectedText, props.articleId, props.historyId)
   }
 }
 
@@ -166,14 +182,14 @@ function handleExplain(): void {
 function handleAnalyzeSentence(): void {
   if (!props.selectedText) return
   sentenceSaved.value = false
-  analyzeSentence(props.selectedText, props.articleId)
+  analyzeSentence(props.selectedText, props.articleId, props.historyId)
 }
 
 /** 手动触发段落总结 */
 function handleParagraphSummary(): void {
   const paragraph = props.selectedContext || props.selectedText
   if (!paragraph) return
-  paragraphSummary(paragraph, props.articleId)
+  paragraphSummary(paragraph, props.articleId, props.historyId)
 }
 
 // ============================================================
@@ -185,7 +201,7 @@ async function handleSendChat(): Promise<void> {
   const text = chatInput.value.trim()
   if (!text || streaming.value) return
   chatInput.value = ''
-  await sendChat(text, props.articleId)
+  await sendChat(text, props.articleId, props.historyId)
   scrollToBottom()
 }
 
@@ -209,6 +225,15 @@ watch(streaming, (val) => {
 watch(activeTab, (newTab) => {
   if (newTab === 'chat' && chatMessages.value.length === 0) {
     loadChatHistory(props.articleId).then(() => scrollToBottom())
+  }
+  // 首次切换到总结标签时加载已有总结和练习题
+  if (newTab === 'summary' && props.historyId) {
+    if (summary.value === null) {
+      loadSummary(props.historyId)
+    }
+    if (quiz.value === null) {
+      loadLatestQuiz(props.historyId)
+    }
   }
 })
 
@@ -296,6 +321,66 @@ async function handleSaveSentence(): Promise<void> {
     // 错误由 axios 拦截器统一提示
   }
 }
+
+// ============================================================
+//  阅读总结 & 练习题操作
+// ============================================================
+
+/** 所有题目是否都已作答 */
+const allQuestionsAnswered = computed(() => {
+  if (!quiz.value) return false
+  return quiz.value.questions.every((q) => quizAnswers.value[q.id])
+})
+
+/** 生成阅读总结 */
+async function handleGenerateSummary(): Promise<void> {
+  if (!props.historyId) return
+  await generateSummary(props.historyId)
+}
+
+/** 生成练习题 */
+async function handleGenerateQuiz(): Promise<void> {
+  if (!props.historyId) return
+  await generateQuiz(props.articleId, props.historyId)
+}
+
+/** 提交练习题答案 */
+async function handleSubmitQuiz(): Promise<void> {
+  if (!quiz.value) return
+  await submitQuizAnswers(quiz.value.id)
+  if (quizResults.value) {
+    message.success(t('reading.quizSubmitted', { score: quizResults.value.score, total: quizResults.value.total }))
+  }
+}
+
+/** 根据选项索引获取字母（0→A, 1→B, ...） */
+function optionLetter(index: number): string {
+  return String.fromCharCode(65 + index)
+}
+
+/** 格式化阅读时长 */
+function formatDuration(seconds: number | null | undefined): string {
+  if (!seconds) return '0s'
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  if (mins === 0) return `${secs}s`
+  if (secs === 0) return `${mins}m`
+  return `${mins}m${secs}s`
+}
+
+/** 从判分结果中获取某道题的正确答案 */
+function getCorrectAnswer(questionId: number): string {
+  if (!quizResults.value) return ''
+  const result = quizResults.value.results.find((r) => r.question_id === questionId)
+  return result?.correct_answer ?? ''
+}
+
+/** 从判分结果中获取某道题的解析 */
+function getExplanation(questionId: number): string {
+  if (!quizResults.value) return ''
+  const result = quizResults.value.results.find((r) => r.question_id === questionId)
+  return result?.explanation ?? ''
+}
 </script>
 
 <template>
@@ -315,6 +400,12 @@ async function handleSaveSentence(): Promise<void> {
           @click="activeTab = 'chat'"
         >
           {{ t('reading.chat') }}
+        </button>
+        <button
+          :class="['ai-tab', { 'ai-tab--active': activeTab === 'summary' }]"
+          @click="activeTab = 'summary'"
+        >
+          {{ t('reading.summary') }}
         </button>
       </div>
     </div>
@@ -385,7 +476,7 @@ async function handleSaveSentence(): Promise<void> {
       </template>
 
       <!-- ======================== 问答模式 ======================== -->
-      <template v-else>
+      <template v-else-if="activeTab === 'chat'">
         <div ref="chatScrollRef" class="ai-panel__chat">
           <!-- 空状态 -->
           <div v-if="chatMessages.length === 0" class="ai-panel__empty">
@@ -418,6 +509,156 @@ async function handleSaveSentence(): Promise<void> {
             <span class="ai-panel__hint">{{ t('reading.thinking') }}</span>
           </div>
         </div>
+      </template>
+
+      <!-- ======================== 总结模式 ======================== -->
+      <template v-else>
+        <!-- 无 historyId 时提示 -->
+        <div v-if="!historyId" class="ai-panel__empty">
+          <p class="ai-panel__hint">{{ t('reading.summaryNoHistory') }}</p>
+        </div>
+
+        <template v-else>
+          <!-- 总结区域 -->
+          <!-- 生成中 -->
+          <div v-if="generatingSummary" class="ai-panel__thinking">
+            <NSpin size="small" />
+            <span class="ai-panel__hint">{{ t('reading.generatingSummary') }}</span>
+          </div>
+
+          <!-- 无总结：生成按钮 -->
+          <div v-else-if="!summary" class="ai-panel__summary-empty">
+            <p class="ai-panel__hint">{{ t('reading.summaryHint') }}</p>
+            <NButton size="small" type="primary" @click="handleGenerateSummary">
+              {{ t('reading.generateSummary') }}
+            </NButton>
+          </div>
+
+          <!-- 已有总结：展示内容 -->
+          <template v-else>
+            <!-- 活动统计 -->
+            <div class="summary-stats">
+              <span class="summary-stat">
+                {{ t('reading.statWords', { count: summary.activity_stats?.word_count ?? 0 }) }}
+              </span>
+              <span class="summary-stat">
+                {{ t('reading.statSentences', { count: summary.activity_stats?.sentence_count ?? 0 }) }}
+              </span>
+              <span class="summary-stat">
+                {{ t('reading.statChats', { count: summary.activity_stats?.chat_count ?? 0 }) }}
+              </span>
+              <span class="summary-stat">
+                {{ t('reading.statDuration', { duration: formatDuration(summary.activity_stats?.duration_seconds) }) }}
+              </span>
+            </div>
+
+            <!-- 总结正文 -->
+            <!-- eslint-disable vue/no-v-html -->
+            <div class="markdown-body summary-content" v-html="renderMarkdown(summary.content)" />
+
+            <!-- 重新生成按钮 -->
+            <div class="summary-actions">
+              <NButton size="small" secondary @click="handleGenerateSummary">
+                {{ t('reading.regenerateSummary') }}
+              </NButton>
+            </div>
+          </template>
+
+          <!-- 练习题区域 -->
+          <div v-if="summary" class="quiz-section">
+            <div class="quiz-section__divider" />
+
+            <!-- 生成中 -->
+            <div v-if="generatingQuiz" class="ai-panel__thinking">
+              <NSpin size="small" />
+              <span class="ai-panel__hint">{{ t('reading.generatingQuiz') }}</span>
+            </div>
+
+            <!-- 无练习题：生成按钮 -->
+            <div v-else-if="!quiz" class="quiz-section__empty">
+              <NButton size="small" type="primary" @click="handleGenerateQuiz">
+                {{ t('reading.startQuiz') }}
+              </NButton>
+            </div>
+
+            <!-- 有练习题 -->
+            <template v-else>
+              <div class="quiz-header">
+                <span class="quiz-header__title">{{ t('reading.quizTitle') }}</span>
+                <span v-if="quizResults" class="quiz-header__score">
+                  {{ t('reading.quizScore', { score: quizResults.score, total: quizResults.total }) }}
+                </span>
+              </div>
+
+              <!-- 题目列表 -->
+              <div
+                v-for="(q, qi) in quiz.questions"
+                :key="q.id"
+                class="quiz-question"
+              >
+                <p class="quiz-question__text">
+                  {{ qi + 1 }}. {{ q.question }}
+                </p>
+                <div class="quiz-question__options">
+                  <label
+                    v-for="(opt, oi) in q.options"
+                    :key="oi"
+                    :class="[
+                      'quiz-option',
+                      {
+                        'quiz-option--selected': quizAnswers[q.id] === optionLetter(oi),
+                        'quiz-option--correct': quizResults && optionLetter(oi) === getCorrectAnswer(q.id),
+                        'quiz-option--wrong': quizResults && quizAnswers[q.id] === optionLetter(oi) && optionLetter(oi) !== getCorrectAnswer(q.id),
+                      }
+                    ]"
+                  >
+                    <input
+                      :type="'radio'"
+                      :name="`q-${q.id}`"
+                      :value="optionLetter(oi)"
+                      :checked="quizAnswers[q.id] === optionLetter(oi)"
+                      :disabled="!!quizResults"
+                      class="quiz-option__radio"
+                      @change="quizAnswers[q.id] = optionLetter(oi)"
+                    />
+                    <span class="quiz-option__text">{{ opt }}</span>
+                  </label>
+                </div>
+                <!-- 解析（仅提交后显示） -->
+                <div v-if="quizResults" class="quiz-question__explanation">
+                  <p v-if="quizAnswers[q.id] === getCorrectAnswer(q.id)" class="quiz-correct">
+                    {{ t('reading.correctAnswer') }}
+                  </p>
+                  <p v-else class="quiz-wrong">
+                    {{ t('reading.wrongAnswer') }}
+                    {{ t('reading.correctIs', { answer: getCorrectAnswer(q.id) }) }}
+                  </p>
+                  <p class="quiz-explanation-text">{{ getExplanation(q.id) }}</p>
+                </div>
+              </div>
+
+              <!-- 提交按钮 -->
+              <div v-if="!quizResults" class="quiz-actions">
+                <NButton
+                  size="small"
+                  type="primary"
+                  :disabled="!allQuestionsAnswered"
+                  :loading="submittingQuiz"
+                  @click="handleSubmitQuiz"
+                >
+                  {{ t('reading.submitQuiz') }}
+                </NButton>
+              </div>
+
+              <!-- 重新练习按钮 -->
+              <div v-else class="quiz-actions">
+                <NButton size="small" secondary @click="handleGenerateQuiz">
+                  {{ t('reading.retryQuiz') }}
+                </NButton>
+              </div>
+            </template>
+          </div>
+        </template>
       </template>
     </div>
 
@@ -703,6 +944,170 @@ async function handleSaveSentence(): Promise<void> {
   flex: 1;
 }
 
+/* ---- 总结模式 ---- */
+.ai-panel__summary-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 48px 16px;
+  text-align: center;
+}
+
+.summary-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.summary-stat {
+  font-size: 12px;
+  color: #86868b;
+  background: #f5f5f5;
+  padding: 4px 10px;
+  border-radius: 12px;
+}
+
+.summary-content {
+  margin-bottom: 12px;
+}
+
+.summary-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* ---- 练习题区域 ---- */
+.quiz-section {
+  margin-top: 16px;
+}
+
+.quiz-section__divider {
+  height: 1px;
+  background: #f0f0f0;
+  margin-bottom: 16px;
+}
+
+.quiz-section__empty {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0;
+}
+
+.quiz-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.quiz-header__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.quiz-header__score {
+  font-size: 13px;
+  font-weight: 600;
+  color: #34c759;
+}
+
+.quiz-question {
+  margin-bottom: 16px;
+}
+
+.quiz-question__text {
+  font-size: 14px;
+  color: #1d1d1f;
+  margin: 0 0 8px;
+  line-height: 1.6;
+}
+
+.quiz-question__options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quiz-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quiz-option:hover {
+  background: #f9f9f9;
+}
+
+.quiz-option--selected {
+  border-color: #1d1d1f;
+  background: #f0f0f0;
+}
+
+.quiz-option--correct {
+  border-color: #34c759;
+  background: rgba(52, 199, 89, 0.08);
+}
+
+.quiz-option--wrong {
+  border-color: #ff3b30;
+  background: rgba(255, 59, 48, 0.08);
+}
+
+.quiz-option__radio {
+  margin-top: 3px;
+  cursor: pointer;
+}
+
+.quiz-option__text {
+  font-size: 13px;
+  color: #1d1d1f;
+  line-height: 1.5;
+  flex: 1;
+}
+
+.quiz-question__explanation {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.quiz-correct {
+  font-size: 13px;
+  font-weight: 600;
+  color: #34c759;
+  margin: 0 0 4px;
+}
+
+.quiz-wrong {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ff3b30;
+  margin: 0 0 4px;
+}
+
+.quiz-explanation-text {
+  font-size: 13px;
+  color: #86868b;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.quiz-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
 /* ============================================================
    暗色模式
    ============================================================ */
@@ -783,5 +1188,58 @@ async function handleSaveSentence(): Promise<void> {
 
 :global(html.dark) .typing-cursor {
   background: #d4d4d8;
+}
+
+/* ---- 总结/练习题暗色模式 ---- */
+:global(html.dark) .summary-stat {
+  color: #86868b;
+  background: #1f1f1f;
+}
+
+:global(html.dark) .quiz-section__divider {
+  background: #1f1f1f;
+}
+
+:global(html.dark) .quiz-header__title {
+  color: #ededed;
+}
+
+:global(html.dark) .quiz-question__text {
+  color: #d4d4d8;
+}
+
+:global(html.dark) .quiz-option {
+  border-color: #2a2a2a;
+}
+
+:global(html.dark) .quiz-option:hover {
+  background: #1a1a1a;
+}
+
+:global(html.dark) .quiz-option--selected {
+  border-color: #d4d4d8;
+  background: #262626;
+}
+
+:global(html.dark) .quiz-option--correct {
+  border-color: #34c759;
+  background: rgba(52, 199, 89, 0.12);
+}
+
+:global(html.dark) .quiz-option--wrong {
+  border-color: #ff453a;
+  background: rgba(255, 69, 58, 0.12);
+}
+
+:global(html.dark) .quiz-option__text {
+  color: #d4d4d8;
+}
+
+:global(html.dark) .quiz-question__explanation {
+  background: #1a1a1a;
+}
+
+:global(html.dark) .quiz-explanation-text {
+  color: #86868b;
 }
 </style>

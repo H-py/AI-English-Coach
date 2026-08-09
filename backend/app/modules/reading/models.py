@@ -123,11 +123,17 @@ class SentenceCollection(Base):
 
 
 class ReadingHistory(Base):
-    """某篇文章的阅读会话记录（每个 用户+文章 一行）。
+    """某篇文章的阅读会话记录（每用户每文章唯一）。
 
-    每个 (用户, 文章) 组合最多一行。``read_count`` 跟踪用户打开该文章
-    的次数；``started_at`` / ``ended_at`` / ``duration_seconds`` 始终
-    反映**最近一次**阅读会话。
+    每个用户对每篇文章只保留一条阅读历史记录（``user_id`` + ``article_id``
+    唯一约束），确保阅读历史界面中同一篇文章只显示一张卡片。每次重新
+    阅读时，会更新 ``started_at`` 为当前时间并递增 ``read_count``，
+    ``ended_at`` 和 ``duration_seconds`` 被重置，等待本次会话结束时
+    重新填写。
+
+    AI 活动日志（``ai_activities``）和对话消息（``ai_conversations``）
+    通过 ``history_id`` 关联到此记录，但在生成阅读总结时，会额外按
+    ``created_at >= started_at`` 过滤，确保只统计本次会话的数据。
     """
 
     __tablename__ = "reading_histories"
@@ -144,7 +150,7 @@ class ReadingHistory(Base):
         BigInteger, ForeignKey("users.id"), index=True, nullable=False
     )
     article_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("articles.id"), nullable=False
+        BigInteger, ForeignKey("articles.id"), index=True, nullable=False
     )
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

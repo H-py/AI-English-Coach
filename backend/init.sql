@@ -306,11 +306,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_reading_histories_user_article ON reading_h
 -- ------------------------------------------------------------
 -- 11. ai_conversations 表（AI 对话记录）
 -- ------------------------------------------------------------
--- 对应 backend/app/modules/reading/models.py 中的 AiConversation 模型
+-- 对应 backend/app/modules/ai/models.py 中的 AiConversation 模型
+-- history_id 将对话消息关联到具体的阅读会话，使每次阅读的问答
+-- 记录可以被独立提取用于生成阅读总结。
 CREATE TABLE IF NOT EXISTS ai_conversations (
     id              BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id         BIGINT       NOT NULL REFERENCES users(id),
     article_id      BIGINT       NOT NULL REFERENCES articles(id),
+    history_id      BIGINT       REFERENCES reading_histories(id),
     role            VARCHAR(20)  NOT NULL,
     content         TEXT         NOT NULL,
     is_summarized   BOOLEAN      NOT NULL DEFAULT FALSE,
@@ -320,11 +323,12 @@ CREATE TABLE IF NOT EXISTS ai_conversations (
 -- 索引
 CREATE INDEX IF NOT EXISTS ix_ai_conversations_user_id    ON ai_conversations (user_id);
 CREATE INDEX IF NOT EXISTS ix_ai_conversations_article_id ON ai_conversations (article_id);
+CREATE INDEX IF NOT EXISTS ix_ai_conversations_history_id ON ai_conversations (history_id);
 
 -- ------------------------------------------------------------
 -- 12. ai_memories 表（AI 长期记忆）
 -- ------------------------------------------------------------
--- 对应 backend/app/modules/reading/models.py 中的 AiMemory 模型
+-- 对应 backend/app/modules/ai/models.py 中的 AiMemory 模型
 -- 当未摘要的对话消息超过 token 阈值时，最旧的一批消息会被
 -- LLM 压缩为摘要存入此表。memory_type 区分摘要/事实/错误/偏好。
 CREATE TABLE IF NOT EXISTS ai_memories (
@@ -346,7 +350,7 @@ CREATE INDEX IF NOT EXISTS ix_ai_memories_article_id ON ai_memories (article_id)
 -- ------------------------------------------------------------
 -- 13. user_profiles 表（用户画像）
 -- ------------------------------------------------------------
--- 对应 backend/app/modules/reading/models.py 中的 UserProfile 模型
+-- 对应 backend/app/modules/ai/models.py 中的 UserProfile 模型
 -- 每个用户一行，由 LLM 从积累的记忆中定期生成/更新。
 -- profile_summary 是自然语言画像，注入 system prompt 供 AI 个性化响应。
 CREATE TABLE IF NOT EXISTS user_profiles (
@@ -363,7 +367,69 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 );
 
 -- ------------------------------------------------------------
--- 14. 验证查询
+-- 14. ai_activities 表（AI 交互活动记录）
+-- ------------------------------------------------------------
+-- 对应 backend/app/modules/ai/models.py 中的 AiActivity 模型
+-- 每次 AI 交互（查词、分析句子、翻译、段落摘要、问答）都会记录一条
+-- 活动日志，关联到具体的阅读会话。这些数据用于生成阅读总结。
+CREATE TABLE IF NOT EXISTS ai_activities (
+    id              BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id         BIGINT       NOT NULL REFERENCES users(id),
+    article_id      BIGINT       NOT NULL REFERENCES articles(id),
+    history_id      BIGINT       REFERENCES reading_histories(id),
+    activity_type   VARCHAR(30)  NOT NULL,
+    content         TEXT         NOT NULL,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- 索引
+CREATE INDEX IF NOT EXISTS ix_ai_activities_user_id    ON ai_activities (user_id);
+CREATE INDEX IF NOT EXISTS ix_ai_activities_article_id ON ai_activities (article_id);
+CREATE INDEX IF NOT EXISTS ix_ai_activities_history_id ON ai_activities (history_id);
+
+-- ------------------------------------------------------------
+-- 15. reading_summaries 表（阅读总结）
+-- ------------------------------------------------------------
+-- 对应 backend/app/modules/ai/models.py 中的 ReadingSummary 模型
+-- 每个阅读会话最多保留一条总结，重新生成会覆盖旧的。
+-- activity_stats 存储各类活动的统计数据（查词数、句子数、问答数、时长）。
+CREATE TABLE IF NOT EXISTS reading_summaries (
+    id              BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id         BIGINT       NOT NULL REFERENCES users(id),
+    article_id      BIGINT       NOT NULL REFERENCES articles(id),
+    history_id      BIGINT       NOT NULL REFERENCES reading_histories(id),
+    content         TEXT         NOT NULL,
+    activity_stats  JSON         NOT NULL DEFAULT '{}',
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- 索引与约束
+CREATE INDEX IF NOT EXISTS ix_reading_summaries_user_id ON reading_summaries (user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_reading_summaries_history ON reading_summaries (history_id);
+
+-- ------------------------------------------------------------
+-- 16. reading_quizzes 表（阅读练习题）
+-- ------------------------------------------------------------
+-- 对应 backend/app/modules/ai/models.py 中的 ReadingQuiz 模型
+-- 每个阅读会话可以有多份练习题。questions 是 JSON 数组，每元素含
+-- 题目、选项、正确答案和解析。user_answers 在提交前为 NULL。
+CREATE TABLE IF NOT EXISTS reading_quizzes (
+    id              BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id         BIGINT       NOT NULL REFERENCES users(id),
+    article_id      BIGINT       NOT NULL REFERENCES articles(id),
+    history_id      BIGINT       NOT NULL REFERENCES reading_histories(id),
+    questions       JSON         NOT NULL DEFAULT '[]',
+    user_answers    JSON,
+    score           INTEGER,
+    total           INTEGER      NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- 索引
+CREATE INDEX IF NOT EXISTS ix_reading_quizzes_user_id ON reading_quizzes (user_id);
+
+-- ------------------------------------------------------------
+-- 17. 验证查询
 -- ------------------------------------------------------------
 -- 执行后可运行以下语句确认表和数据：
 --   SELECT id, email, username, english_level FROM users;
@@ -373,3 +439,6 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 --   SELECT id, sentence FROM sentence_collections;
 --   SELECT id, article_id, duration_seconds FROM reading_histories;
 --   SELECT id, article_id, role FROM ai_conversations;
+--   SELECT id, user_id, activity_type FROM ai_activities;
+--   SELECT id, history_id, LEFT(content, 50) FROM reading_summaries;
+--   SELECT id, history_id, score, total FROM reading_quizzes;
