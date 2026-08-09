@@ -1,10 +1,9 @@
-"""Pydantic schemas for the admin module.
+"""admin 模块的 Pydantic schemas。
 
-These schemas describe the wire shapes used by admin-only endpoints for
-article and user management. They extend or compose the base schemas from
-the article and users modules, adding fields that are only relevant to
-administrators (e.g. ``is_published`` in the article list item, or the
-ability to update ``role`` and ``is_active`` on users).
+这些 schemas 描述了仅管理员可用端点在文章和用户管理时使用的传输数据结构。
+它们继承或组合了 article 与 users 模块的基础 schemas，并添加了仅对管理员
+有意义的字段（例如文章列表项中的 ``is_published``，或对用户更新 ``role``
+与 ``is_active`` 的能力）。
 """
 
 from datetime import datetime
@@ -18,15 +17,14 @@ from app.modules.users.models import EnglishLevel, UserRole
 
 
 # ---------------------------------------------------------------------------
-# Article schemas
+# 文章 schemas
 # ---------------------------------------------------------------------------
 
 class AdminArticleListItem(ArticleListItem):
-    """Article list item with admin-specific fields.
+    """带管理员专属字段的文章列表项。
 
-    Extends :class:`ArticleListItem` with ``is_published``, ``view_count``,
-    and ``updated_at`` so administrators can see publication status and
-    engagement metrics at a glance.
+    在 :class:`ArticleListItem` 基础上扩展了 ``is_published``、``view_count``
+    和 ``updated_at``，使管理员可一目了然地查看发布状态与互动指标。
     """
 
     is_published: bool
@@ -35,7 +33,7 @@ class AdminArticleListItem(ArticleListItem):
 
 
 class AdminArticleListResponse(BaseModel):
-    """Paginated list of all articles (including unpublished) for admin."""
+    """供管理员使用的全部文章（含未发布）分页列表。"""
 
     items: list[AdminArticleListItem]
     total: int
@@ -44,10 +42,9 @@ class AdminArticleListResponse(BaseModel):
 
 
 class AdminArticleQueryParams(BaseModel):
-    """Query parameters for the admin article list.
+    """管理员文章列表的查询参数。
 
-    Supports a case-insensitive title search, difficulty filter, tag filter,
-    publication-status filter, and pagination.
+    支持不区分大小写的标题搜索、难度筛选、标签筛选、发布状态筛选以及分页。
     """
 
     search: Optional[str] = None
@@ -59,14 +56,14 @@ class AdminArticleQueryParams(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# User schemas
+# 用户 schemas
 # ---------------------------------------------------------------------------
 
 class AdminUserOut(BaseModel):
-    """Full user representation for admin views.
+    """供管理员视图使用的完整用户表示。
 
-    Mirrors :class:`UserOut` from the users module but is defined here to
-    keep the admin module self-contained and allow future divergence.
+    与 users 模块中的 :class:`UserOut` 对应，但在此处定义以保持 admin 模块
+    自包含，并便于将来出现差异化时独立演进。
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -83,7 +80,7 @@ class AdminUserOut(BaseModel):
 
 
 class AdminUserListResponse(BaseModel):
-    """Paginated list of users for admin."""
+    """供管理员使用的用户分页列表。"""
 
     items: list[AdminUserOut]
     total: int
@@ -92,11 +89,10 @@ class AdminUserListResponse(BaseModel):
 
 
 class AdminUserUpdate(BaseModel):
-    """Partial-update payload for admin user management.
+    """管理员用户管理的部分更新载荷。
 
-    Allows updating the username, role, active status, and English level.
-    Email is intentionally excluded — changing email requires a separate
-    verification flow.
+    允许更新用户名、角色、启用状态和英语等级。
+    邮箱被刻意排除在外——修改邮箱需要走单独的验证流程。
     """
 
     username: Optional[str] = Field(default=None, min_length=2, max_length=50)
@@ -106,7 +102,7 @@ class AdminUserUpdate(BaseModel):
 
 
 class AdminUserQueryParams(BaseModel):
-    """Query parameters for the admin user list."""
+    """管理员用户列表的查询参数。"""
 
     search: Optional[str] = None
     role: Optional[UserRole] = None
@@ -116,11 +112,11 @@ class AdminUserQueryParams(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Dashboard / overview schemas
+# 仪表盘 / 概览 schemas
 # ---------------------------------------------------------------------------
 
 class AdminDashboard(BaseModel):
-    """High-level statistics for the admin overview page."""
+    """管理概览页面的高层统计数据。"""
 
     total_users: int
     total_articles: int

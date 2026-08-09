@@ -1,42 +1,17 @@
-"""HTTP routes for the reading module.
+"""阅读模块的 HTTP 路由。
 
-Provides four AI streaming endpoints (Server-Sent Events) for word
-explanation, sentence analysis, paragraph summary, and article chat,
-plus standard REST endpoints for word collections, sentence collections,
-and reading history. All endpoints require authentication.
-
-SSE protocol
--------------
-Each streaming endpoint emits ``text/event-stream`` frames of the form::
-
-    data: {"content": "<chunk>"}\\n\\n
-
-When the stream completes normally a terminal frame is sent::
-
-    data: {"done": true}\\n\\n
-
-If an error occurs during streaming, an error frame is sent instead::
-
-    data: {"error": "<message>"}\\n\\n
+提供单词收藏、句子收藏和阅读历史的标准 REST 端点。
+所有端点均需认证。
 """
 
-import json
-from collections.abc import AsyncGenerator
 from typing import Optional
 
 from fastapi import APIRouter, Query
-from fastapi.responses import StreamingResponse
 
-from app.api.deps import CurrentUser, DbSession, RedisClient
-from app.core.exceptions import BizException
+from app.api.deps import CurrentUser, DbSession
 from app.core.response import ResponseModel, success
 from app.modules.reading.models import MasteryLevel
 from app.modules.reading.schemas import (
-    AnalyzeSentenceRequest,
-    ChatRequest,
-    ConversationListResponse,
-    ExplainWordRequest,
-    ParagraphSummaryRequest,
     ReadingHistoryCreate,
     ReadingHistoryOut,
     ReadingHistoryUpdate,
@@ -45,28 +20,21 @@ from app.modules.reading.schemas import (
     SentenceCollectionOut,
     SentenceCollectionUpdate,
     SentenceListResponse,
-    SentenceTranslationRequest,
     WordCollectionCreate,
     WordCollectionOut,
     WordCollectionUpdate,
     WordListResponse,
 )
 from app.modules.reading.service import (
-    analyze_sentence,
-    chat,
     end_reading,
-    explain_word,
-    list_conversations,
     list_histories,
     list_sentences,
     list_words,
-    paragraph_summary,
     remove_sentence,
     remove_word,
     save_sentence,
     save_word,
     start_reading,
-    translate_sentence,
     update_sentence_note,
     update_word_mastery,
 )
@@ -74,129 +42,7 @@ from app.modules.reading.service import (
 router = APIRouter(prefix="/reading", tags=["reading"])
 
 
-# ---- SSE helper -------------------------------------------------------------
-
-
-def _sse_stream(
-    generator: AsyncGenerator[str, None],
-) -> AsyncGenerator[str, None]:
-    """Wrap a service async generator into an SSE byte stream.
-
-    Each yielded chunk is framed as ``data: {"content": ...}\\n\\n``. On
-    normal completion a ``data: {"done": true}\\n\\n`` frame is emitted.
-    :class:`BizException` instances produce ``data: {"error": ...}\\n\\n``
-    using the exception's message; any other exception uses ``str(exc)``.
-
-    Args:
-        generator: The service-layer async generator yielding ``str``
-            chunks.
-
-    Yields:
-        SSE-formatted ``str`` frames.
-    """
-
-    async def event_stream() -> AsyncGenerator[str, None]:
-        try:
-            async for chunk in generator:
-                yield f"data: {json.dumps({'content': chunk})}\n\n"
-            yield f"data: {json.dumps({'done': True})}\n\n"
-        except BizException as e:
-            yield f"data: {json.dumps({'error': e.message})}\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
-
-    return event_stream()
-
-
-# ---- AI streaming endpoints (SSE) ------------------------------------------
-
-
-@router.post(
-    "/explain-word",
-    summary="Explain a word in context (streaming)",
-)
-async def explain_word_endpoint(
-    data: ExplainWordRequest,
-    db: DbSession,
-    current_user: CurrentUser,
-    redis: RedisClient,
-) -> StreamingResponse:
-    """Stream an AI explanation of a word as Server-Sent Events."""
-    return StreamingResponse(
-        _sse_stream(explain_word(db, current_user, data, redis)),
-        media_type="text/event-stream",
-    )
-
-
-@router.post(
-    "/analyze-sentence",
-    summary="Analyze a sentence structure (streaming)",
-)
-async def analyze_sentence_endpoint(
-    data: AnalyzeSentenceRequest,
-    db: DbSession,
-    current_user: CurrentUser,
-    redis: RedisClient,
-) -> StreamingResponse:
-    """Stream an AI structural analysis of a sentence as Server-Sent Events."""
-    return StreamingResponse(
-        _sse_stream(analyze_sentence(db, current_user, data, redis)),
-        media_type="text/event-stream",
-    )
-
-
-@router.post(
-    "/translate-sentence",
-    summary="Translate a sentence into Chinese (streaming)",
-)
-async def translate_sentence_endpoint(
-    data: SentenceTranslationRequest,
-    db: DbSession,
-    current_user: CurrentUser,
-    redis: RedisClient,
-) -> StreamingResponse:
-    """Stream an AI translation of a sentence as Server-Sent Events."""
-    return StreamingResponse(
-        _sse_stream(translate_sentence(db, current_user, data, redis)),
-        media_type="text/event-stream",
-    )
-
-
-@router.post(
-    "/paragraph-summary",
-    summary="Summarize a paragraph (streaming)",
-)
-async def paragraph_summary_endpoint(
-    data: ParagraphSummaryRequest,
-    db: DbSession,
-    current_user: CurrentUser,
-    redis: RedisClient,
-) -> StreamingResponse:
-    """Stream an AI summary of a paragraph as Server-Sent Events."""
-    return StreamingResponse(
-        _sse_stream(paragraph_summary(db, current_user, data, redis)),
-        media_type="text/event-stream",
-    )
-
-
-@router.post(
-    "/chat",
-    summary="Chat about the current article (streaming)",
-)
-async def chat_endpoint(
-    data: ChatRequest,
-    db: DbSession,
-    current_user: CurrentUser,
-    redis: RedisClient,
-) -> StreamingResponse:
-    """Stream an AI chat reply about the current article as Server-Sent Events."""
-    return StreamingResponse(
-        _sse_stream(chat(db, current_user, data, redis)),
-        media_type="text/event-stream",
-    )
-
-
-# ---- Word collection endpoints ---------------------------------------------
+# ---- 单词收藏端点 -----------------------------------------------------------
 
 
 @router.post(
@@ -209,7 +55,7 @@ async def save_word_endpoint(
     db: DbSession,
     current_user: CurrentUser,
 ) -> dict:
-    """Save (upsert) a collected word for the current user."""
+    """为当前用户保存（upsert）一个收藏的单词。"""
     word = await save_word(db, current_user.id, data)
     return success(word)
 
@@ -227,11 +73,10 @@ async def list_words_endpoint(
     mastery_level: Optional[MasteryLevel] = Query(default=None),
     search: Optional[str] = Query(default=None, max_length=255),
 ) -> dict:
-    """List the current user's collected words with pagination.
+    """分页列出当前用户收藏的单词。
 
-    Optionally filter by ``mastery_level`` (``new``, ``learning``,
-    ``familiar``, ``mastered``) and/or search by word text
-    (case-insensitive).
+    可选按 ``mastery_level``（``new``、``learning``、``familiar``、
+    ``mastered``）过滤，和/或按单词文本搜索（不区分大小写）。
     """
     result = await list_words(
         db, current_user.id, page, page_size, mastery_level, search
@@ -250,7 +95,7 @@ async def update_word_endpoint(
     db: DbSession,
     current_user: CurrentUser,
 ) -> dict:
-    """Update the mastery level and/or study count of a collected word."""
+    """更新某个收藏单词的掌握程度和/或学习次数。"""
     word = await update_word_mastery(db, current_user.id, word_id, data)
     return success(word)
 
@@ -265,12 +110,12 @@ async def delete_word_endpoint(
     db: DbSession,
     current_user: CurrentUser,
 ) -> dict:
-    """Delete a collected word for the current user."""
+    """删除当前用户收藏的某个单词。"""
     await remove_word(db, current_user.id, word_id)
     return success(None)
 
 
-# ---- Sentence collection endpoints -----------------------------------------
+# ---- 句子收藏端点 -----------------------------------------------------------
 
 
 @router.post(
@@ -284,7 +129,7 @@ async def save_sentence_endpoint(
     db: DbSession,
     current_user: CurrentUser,
 ) -> dict:
-    """Save a collected sentence for the current user."""
+    """为当前用户保存一个收藏的句子。"""
     sentence = await save_sentence(db, current_user.id, data)
     return success(sentence)
 
@@ -301,9 +146,9 @@ async def list_sentences_endpoint(
     page_size: int = Query(default=20, ge=1, le=100),
     search: Optional[str] = Query(default=None, max_length=255),
 ) -> dict:
-    """List the current user's collected sentences with pagination.
+    """分页列出当前用户收藏的句子。
 
-    Optionally search by sentence text (case-insensitive).
+    可选按句子文本搜索（不区分大小写）。
     """
     result = await list_sentences(
         db, current_user.id, page, page_size, search
@@ -322,7 +167,7 @@ async def update_sentence_endpoint(
     db: DbSession,
     current_user: CurrentUser,
 ) -> dict:
-    """Update the note on a collected sentence for the current user."""
+    """更新当前用户某个收藏句子的备注。"""
     sentence = await update_sentence_note(
         db, current_user.id, sentence_id, data
     )
@@ -339,12 +184,12 @@ async def delete_sentence_endpoint(
     db: DbSession,
     current_user: CurrentUser,
 ) -> dict:
-    """Delete a collected sentence for the current user."""
+    """删除当前用户收藏的某个句子。"""
     await remove_sentence(db, current_user.id, sentence_id)
     return success(None)
 
 
-# ---- Reading history endpoints ---------------------------------------------
+# ---- 阅读历史端点 -----------------------------------------------------------
 
 
 @router.post(
@@ -358,7 +203,7 @@ async def start_reading_endpoint(
     db: DbSession,
     current_user: CurrentUser,
 ) -> dict:
-    """Start a new reading session for an article."""
+    """开始一篇文章的新的阅读会话。"""
     history = await start_reading(db, current_user.id, data)
     return success(history)
 
@@ -374,7 +219,7 @@ async def end_reading_endpoint(
     db: DbSession,
     current_user: CurrentUser,
 ) -> dict:
-    """End a reading session, recording end time and duration."""
+    """结束阅读会话，记录结束时间与时长。"""
     history = await end_reading(db, current_user.id, history_id, data)
     return success(history)
 
@@ -390,28 +235,6 @@ async def list_history_endpoint(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> dict:
-    """List the current user's reading history with pagination."""
+    """分页列出当前用户的阅读历史。"""
     result = await list_histories(db, current_user.id, page, page_size)
-    return success(result)
-
-
-# ---- AI conversation endpoints ---------------------------------------------
-
-
-@router.get(
-    "/conversations/{article_id}",
-    response_model=ResponseModel[ConversationListResponse],
-    summary="List chat history for an article",
-)
-async def list_conversations_endpoint(
-    article_id: int,
-    db: DbSession,
-    current_user: CurrentUser,
-) -> dict:
-    """List the current user's AI chat history for a specific article.
-
-    Returns up to 50 most recent messages in chronological order so the
-    frontend can restore a chat session after a page refresh.
-    """
-    result = await list_conversations(db, current_user.id, article_id)
     return success(result)

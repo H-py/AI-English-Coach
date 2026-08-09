@@ -1,10 +1,9 @@
-"""Pydantic schemas for the article module.
+"""article 模块的 Pydantic schemas。
 
-These schemas describe the wire shapes used by the article endpoints: the
-shared base fields, the create/update payloads, the full read representation
-(``ArticleOut``), a lightweight list item (``ArticleListItem``), the
-paginated list response, and the query-parameter model. They are written in
-the Pydantic v2 style with ``model_config`` / ``ConfigDict``.
+这些 schemas 描述了文章相关端点使用的传输数据结构：共享的基础字段、
+创建/更新载荷、完整读取表示（``ArticleOut``）、轻量列表项
+（``ArticleListItem``）、分页列表响应以及查询参数模型。它们采用
+Pydantic v2 风格，使用 ``model_config`` / ``ConfigDict``。
 """
 
 from datetime import datetime
@@ -16,7 +15,7 @@ from app.modules.article.models import Difficulty
 
 
 class ArticleBase(BaseModel):
-    """Shared article fields used by both request and response schemas."""
+    """请求与响应 schemas 共用的文章字段。"""
 
     title: str = Field(min_length=1, max_length=500)
     content: str
@@ -27,11 +26,10 @@ class ArticleBase(BaseModel):
 
 
 class ArticleCreate(ArticleBase):
-    """Payload for creating a new article.
+    """创建新文章的载荷。
 
-    Extends :class:`ArticleBase` with optional fields that the client may
-    provide. ``word_count`` is intentionally absent — the service layer
-    auto-calculates it from ``content``.
+    在 :class:`ArticleBase` 基础上扩展了客户端可提供的可选字段。
+    刻意未包含 ``word_count`` —— 该值由服务层根据 ``content`` 自动计算。
     """
 
     summary: Optional[str] = None
@@ -40,12 +38,11 @@ class ArticleCreate(ArticleBase):
 
 
 class ArticleUpdate(BaseModel):
-    """Partial-update payload for an existing article.
+    """对已有文章进行部分更新的载荷。
 
-    All fields are optional so that clients can submit only the fields they
-    wish to change. The service layer uses ``exclude_unset`` to apply only
-    the provided values. If ``content`` is updated, ``word_count`` is
-    recalculated automatically.
+    所有字段均为可选，客户端可只提交需要修改的字段。服务层使用
+    ``exclude_unset`` 仅应用已提供的值。若 ``content`` 被更新，
+    ``word_count`` 会自动重新计算。
     """
 
     title: Optional[str] = Field(default=None, min_length=1, max_length=500)
@@ -60,11 +57,10 @@ class ArticleUpdate(BaseModel):
 
 
 class ArticleOut(BaseModel):
-    """Full article representation returned to clients.
+    """返回给客户端的完整文章表示。
 
-    Includes all persisted fields. ``from_attributes`` is enabled so the
-    model can be built directly from an ORM ``Article`` instance via
-    :meth:`ArticleOut.model_validate`.
+    包含所有持久化字段。启用了 ``from_attributes``，因此可通过
+    :meth:`ArticleOut.model_validate` 直接从 ORM ``Article`` 实例构建。
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -86,10 +82,10 @@ class ArticleOut(BaseModel):
 
 
 class ArticleListItem(BaseModel):
-    """Lightweight article representation for list views.
+    """用于列表视图的轻量文章表示。
 
-    Excludes the full ``content`` text to keep list responses small. The
-    ``summary`` field provides a brief overview instead.
+    不包含完整的 ``content`` 正文，以保持列表响应体较小。改用
+    ``summary`` 字段提供简要概览。
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -106,7 +102,7 @@ class ArticleListItem(BaseModel):
 
 
 class ArticleListResponse(BaseModel):
-    """Paginated list of articles with total count and page metadata."""
+    """带总数与分页元数据的文章分页列表。"""
 
     items: list[ArticleListItem]
     total: int
@@ -115,11 +111,10 @@ class ArticleListResponse(BaseModel):
 
 
 class ArticleQueryParams(BaseModel):
-    """Query parameters for filtering and paginating the article list.
+    """用于筛选和分页文章列表的查询参数。
 
-    Used as a structured representation of the query string parameters
-    accepted by the list endpoint. The router constructs this model from
-    individual ``Query`` parameters and passes it to the service layer.
+    作为列表端点所接受的查询字符串参数的结构化表示。路由会从各个
+    ``Query`` 参数构造该模型，并将其传递给服务层。
     """
 
     difficulty: Optional[Difficulty] = None

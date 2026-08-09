@@ -1,8 +1,7 @@
-"""Async database infrastructure.
+"""异步数据库基础设施。
 
-Provides the SQLAlchemy async engine, a session maker, the declarative
-``Base`` class used by every ORM model, and the ``get_db`` FastAPI dependency
-that yields an :class:`AsyncSession`.
+提供 SQLAlchemy 异步引擎、会话工厂、所有 ORM 模型使用的声明式
+``Base`` 基类，以及用于产出 :class:`AsyncSession` 的 ``get_db`` FastAPI 依赖。
 """
 
 from collections.abc import AsyncGenerator
@@ -16,7 +15,7 @@ from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
 
-# Async engine configured with connection pooling tuned for async usage.
+# 异步引擎，连接池针对异步使用场景进行了调优。
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.APP_DEBUG,
@@ -24,7 +23,7 @@ engine = create_async_engine(
     future=True,
 )
 
-# Session factory bound to the async engine.
+# 绑定到异步引擎的会话工厂。
 async_session_factory = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
@@ -34,20 +33,19 @@ async_session_factory = async_sessionmaker(
 
 
 class Base(DeclarativeBase):
-    """Declarative base class for all ORM models.
+    """所有 ORM 模型的声明式基类。
 
-    Every feature module imports :class:`Base` to declare its tables so that
-    Alembic can discover them through metadata reflection.
+    每个功能模块都导入 :class:`Base` 来声明其数据表，以便 Alembic
+    能够通过元数据反射发现它们。
     """
 
     pass
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency that provides a transactional async session.
+    """提供事务性异步会话的 FastAPI 依赖。
 
-    The session is automatically closed when the request completes. If an
-    exception occurs the transaction is rolled back.
+    请求结束时该会话会自动关闭。如果发生异常，事务将被回滚。
     """
     async with async_session_factory() as session:
         try:

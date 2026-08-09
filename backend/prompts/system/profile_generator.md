@@ -14,7 +14,7 @@
 请严格按照以下 JSON 格式输出，不要添加 markdown 代码块标记：
 
 {
-  "profile_summary": "一段自然语言描述的用户画像，200字以内",
+  "profile_summary": "一段自然语言描述的用户画像，300字以内",
   "strengths": ["优势1", "优势2"],
   "weaknesses": ["弱点1", "弱点2"],
   "learning_style": "visual | analytical | conversational",

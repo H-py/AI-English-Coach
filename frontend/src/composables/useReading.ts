@@ -1,5 +1,6 @@
 import { ref } from 'vue'
-import { readingApi, streamReading } from '@/api/reading'
+import { readingApi } from '@/api/reading'
+import { aiApi, streamAI } from '@/api/ai'
 import type { ChatMessage } from '@/types/reading'
 
 /**
@@ -79,7 +80,7 @@ export function useReading() {
     streaming.value = true
 
     try {
-      await streamReading(
+      await streamAI(
         'explain-word',
         { word, context, article_id: articleId },
         {
@@ -133,7 +134,7 @@ export function useReading() {
     streaming.value = true
 
     try {
-      await streamReading(
+      await streamAI(
         'analyze-sentence',
         { sentence, article_id: articleId },
         {
@@ -186,7 +187,7 @@ export function useReading() {
     streaming.value = true
 
     try {
-      await streamReading(
+      await streamAI(
         'translate-sentence',
         { sentence, article_id: articleId },
         {
@@ -237,7 +238,7 @@ export function useReading() {
     streaming.value = true
 
     try {
-      await streamReading(
+      await streamAI(
         'paragraph-summary',
         { paragraph, article_id: articleId },
         {
@@ -297,7 +298,7 @@ export function useReading() {
     })
 
     try {
-      await streamReading(
+      await streamAI(
         'chat',
         { message, article_id: articleId },
         {
@@ -392,14 +393,14 @@ export function useReading() {
    */
   async function loadChatHistory(articleId: number): Promise<void> {
     try {
-      const res = await readingApi.getConversations(articleId)
+      const res = await aiApi.getConversations(articleId)
       chatMessages.value = res.items.map((msg) => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.content,
         timestamp: msg.created_at
       }))
     } catch {
-      // Errors are surfaced by the axios interceptor.
+      // 错误由 axios 响应拦截器统一提示
     }
   }
 

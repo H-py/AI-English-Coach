@@ -1,8 +1,6 @@
-"""FastAPI application entry point.
+"""FastAPI 应用入口。
 
-Creates the app, configures lifespan-managed resources (logging, MinIO
-bucket), CORS, global exception handlers, and mounts the aggregated API
-router.
+创建应用，配置由 lifespan 管理的资源（日志、MinIO 存储桶）、CORS、全局异常处理器，并挂载聚合后的 API 路由。
 """
 
 from contextlib import asynccontextmanager
@@ -23,19 +21,19 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
-    """Manage application startup and shutdown resources.
+    """管理应用启动与关闭时的资源。
 
-    Startup:
-        * Configure structured logging.
-        * Ensure the MinIO bucket exists.
-    Shutdown:
-        * Close the Redis connection pool.
+    启动：
+        * 配置结构化日志。
+        * 确保 MinIO 存储桶存在。
+    关闭：
+        * 关闭 Redis 连接池。
     """
     configure_logging()
     logger.info("Starting %s (env=%s)...", settings.APP_NAME, settings.APP_ENV)
     try:
         ensure_bucket()
-    except Exception as exc:  # noqa: BLE001 - log but continue booting
+    except Exception as exc:  # noqa: BLE001 - 记录日志但继续启动
         logger.warning("MinIO bucket check failed at startup: %s", exc)
     yield
     logger.info("Shutting down %s...", settings.APP_NAME)
@@ -43,7 +41,7 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
 
 
 def create_app() -> FastAPI:
-    """Application factory: build and return the configured FastAPI instance."""
+    """应用工厂：构建并返回配置好的 FastAPI 实例。"""
     app = FastAPI(
         title=settings.APP_NAME,
         description="AI-powered English reading coach platform API.",
@@ -63,10 +61,10 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # ---- Exception handlers ----
+    # ---- 异常处理器 ----
     register_exception_handlers(app)
 
-    # ---- Routes ----
+    # ---- 路由 ----
     app.include_router(api_router)
 
     return app

@@ -1,8 +1,8 @@
-"""Routes for the health module.
+"""health 模块的路由。
 
-This module is the canonical template for the *vertical modular* layout: each
-feature owns its own router, schemas and (later) services/models. The router
-is mounted under ``/api/v1`` by the top-level ``app/api/router.py``.
+本模块是*垂直模块化*布局的规范模板：每个功能都拥有自己的路由、schemas
+以及（后续的）服务/模型。路由由顶层 ``app/api/router.py`` 挂载在
+``/api/v1`` 下。
 """
 
 from fastapi import APIRouter
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/health", tags=["health"])
 
 @router.get("", response_model=ResponseModel[HealthResponse], summary="Health check")
 async def health_check() -> dict:
-    """Return the service health status wrapped in the response envelope.
+    """返回包裹在响应信封中的服务健康状态。
 
     Returns:
         ``{"code": 0, "message": "success", "data": {"status": "ok", ...}}``

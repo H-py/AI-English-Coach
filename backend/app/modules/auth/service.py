@@ -1,13 +1,12 @@
-"""Business-logic layer for the auth module.
+"""auth 模块的业务逻辑层。
 
-Encapsulates the registration, login, and token-refresh workflows. It
-coordinates the users repository with the security helpers (password
-hashing and JWT creation/verification) and raises :class:`BizException`
-with the agreed-upon error codes for any failure.
+封装注册、登录和令牌刷新流程。它协调 users repository 与安全工具
+（密码哈希、JWT 创建/校验），并在任何失败时抛出带有约定错误码的
+:class:`BizException`。
 
-Error code conventions used here:
-    * ``2xxxx`` -- authentication / authorisation errors
-    * ``9xxxx`` -- generic business errors (e.g. user not found)
+此处使用的错误码约定：
+    * ``2xxxx`` —— 认证 / 授权错误
+    * ``9xxxx`` —— 通用业务错误（例如用户不存在）
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,33 +35,32 @@ from app.modules.users.repository import (
 )
 from app.modules.users.schemas import UserOut
 
-# Auth error codes (2xxxx).
+# 认证错误码（2xxxx）。
 EMAIL_ALREADY_REGISTERED_CODE = 20001
 USERNAME_ALREADY_TAKEN_CODE = 20002
 INVALID_CREDENTIALS_CODE = 20003
 ACCOUNT_DISABLED_CODE = 20004
 
-# Business error code (9xxxx).
+# 业务错误码（9xxxx）。
 USER_NOT_FOUND_CODE = 90001
 
 
 async def register(db: AsyncSession, data: RegisterRequest) -> LoginResponse:
-    """Create a new user account and immediately authenticate it.
+    """创建新用户账号并立即完成认证。
 
-    Performs uniqueness checks on email and username before creating the
-    record. On success a token pair is issued and ``last_login_at`` is
-    stamped.
+    在创建记录前对邮箱和用户名进行唯一性校验。成功后签发令牌对，
+    并写入 ``last_login_at``。
 
     Args:
-        db: The active async session.
-        data: The registration payload.
+        db: 当前活跃的异步会话。
+        data: 注册载荷。
 
     Returns:
-        A :class:`LoginResponse` with fresh tokens and the new user.
+        一个 :class:`LoginResponse`，包含新令牌和新用户。
 
     Raises:
-        BizException: If the email is already registered (code ``20001``)
-            or the username is already taken (code ``20002``).
+        BizException: 如果邮箱已被注册（错误码 ``20001``）
+            或用户名已被占用（错误码 ``20002``）。
     """
     if await get_user_by_email(db, data.email):
         raise BizException("email already registered", code=EMAIL_ALREADY_REGISTERED_CODE)
@@ -84,23 +82,22 @@ async def register(db: AsyncSession, data: RegisterRequest) -> LoginResponse:
 
 
 async def login(db: AsyncSession, data: LoginRequest) -> LoginResponse:
-    """Authenticate a user by email and password.
+    """通过邮箱和密码对用户进行认证。
 
-    Uses a single, generic "invalid email or password" message for both an
-    unknown email and a wrong password to avoid user enumeration. A disabled
-    account is reported separately.
+    对于未知邮箱和错误密码都使用同一条通用的“邮箱或密码无效”提示，以避免
+    用户枚举。被禁用的账号会单独报错。
 
     Args:
-        db: The active async session.
-        data: The login payload.
+        db: 当前活跃的异步会话。
+        data: 登录载荷。
 
     Returns:
-        A :class:`LoginResponse` with fresh tokens and the user.
+        一个 :class:`LoginResponse`，包含新令牌和用户。
 
     Raises:
-        BizException: If credentials are invalid (code ``20003``,
-            ``http_status=401``) or the account is disabled (code ``20004``,
-            ``http_status=401``).
+        BizException: 如果凭据无效（错误码 ``20003``，
+            ``http_status=401``）或账号被禁用（错误码 ``20004``，
+            ``http_status=401``）。
     """
     user = await get_user_by_email(db, data.email)
     if user is None or not verify_password(data.password, user.password_hash):
@@ -126,24 +123,22 @@ async def login(db: AsyncSession, data: LoginRequest) -> LoginResponse:
 
 
 async def refresh_token(db: AsyncSession, data: RefreshRequest) -> TokenResponse:
-    """Issue a new access token from a valid refresh token.
+    """根据有效的刷新令牌签发新的访问令牌。
 
-    The refresh token is verified (type must be ``"refresh"``); an invalid
-    or expired token surfaces as a :class:`BizException` from
-    :func:`verify_token`. The refresh token itself is returned unchanged so
-    that clients can keep using it until it expires.
+    会校验刷新令牌（类型必须为 ``"refresh"``）；无效或过期的令牌会由
+    :func:`verify_token` 抛出 :class:`BizException`。刷新令牌本身原样返回，
+    以便客户端可以继续使用它直到过期。
 
     Args:
-        db: The active async session.
-        data: The refresh payload.
+        db: 当前活跃的异步会话。
+        data: 刷新载荷。
 
     Returns:
-        A :class:`TokenResponse` with a new access token.
+        一个 :class:`TokenResponse`，包含新的访问令牌。
 
     Raises:
-        BizException: If the refresh token is invalid/expired (propagated
-            from ``verify_token``) or the owning user no longer exists
-            (code ``90001``, ``http_status=401``).
+        BizException: 如果刷新令牌无效/过期（由 ``verify_token`` 透传）
+            或所属用户已不存在（错误码 ``90001``，``http_status=401``）。
     """
     payload = verify_token(data.refresh_token, expected_type="refresh")
     user_id = int(payload["sub"])

@@ -1,21 +1,19 @@
-"""Standalone script to create or upgrade the initial admin account.
+"""用于创建或升级初始管理员账户的独立脚本。
 
-Usage::
+用法::
 
     cd backend
     python -m app.scripts.init_admin
 
-The admin credentials are read from application settings (``ADMIN_EMAIL``,
-``ADMIN_USERNAME``, ``ADMIN_PASSWORD``), which in turn are loaded from
-environment variables or the ``.env`` file.
+管理员凭据从应用配置（``ADMIN_EMAIL``、``ADMIN_USERNAME``、
+``ADMIN_PASSWORD``）读取，而这些配置又从环境变量或 ``.env`` 文件中
+加载。
 
-Behaviour:
-    * If no user exists with the configured admin email, a new admin user
-      is created.
-    * If a user with that email already exists but is not an admin, the
-      role is upgraded to ``admin``.
-    * If the admin user already exists with the correct role, no changes
-      are made.
+行为：
+    * 若不存在使用配置管理员邮箱的用户，则创建一个新的管理员用户。
+    * 若已存在使用该邮箱的用户但不是管理员，则将其角色升级为
+      ``admin``。
+    * 若管理员用户已存在且角色正确，则不做任何更改。
 """
 
 import asyncio
@@ -32,7 +30,7 @@ logger = get_logger(__name__)
 
 
 async def init_admin() -> None:
-    """Create or upgrade the initial admin user."""
+    """创建或升级初始管理员用户。"""
     configure_logging()
 
     async with async_session_factory() as session:
@@ -42,7 +40,7 @@ async def init_admin() -> None:
         user = result.scalars().first()
 
         if user is None:
-            # Create a new admin user.
+            # 创建新的管理员用户。
             user = User(
                 email=settings.ADMIN_EMAIL,
                 username=settings.ADMIN_USERNAME,
@@ -59,7 +57,7 @@ async def init_admin() -> None:
                 user.username,
             )
         elif user.role != UserRole.admin:
-            # Upgrade existing user to admin.
+            # 将已存在的用户升级为管理员。
             user.role = UserRole.admin
             await session.commit()
             await session.refresh(user)

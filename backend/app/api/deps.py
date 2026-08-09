@@ -1,9 +1,8 @@
-"""Shared FastAPI dependencies.
+"""共享的 FastAPI 依赖。
 
-Re-exports the database and redis dependencies so that route modules have a
-single, well-known import path for common resources. Also defines the
-``get_current_user`` dependency used to authenticate requests via a Bearer
-access token.
+重新导出数据库和 redis 依赖，使路由模块有一个统一、熟知的导入路径来获取
+公共资源。同时还定义了 ``get_current_user`` 依赖，用于通过 Bearer 访问
+令牌对请求进行认证。
 """
 
 from typing import Annotated
@@ -20,13 +19,13 @@ from app.core.security import verify_token
 from app.modules.users.models import User, UserRole
 from app.modules.users.repository import get_user_by_id
 
-# Common annotated dependencies for concise reuse across route modules.
+# 通用带注解依赖，便于在各路由模块中简洁复用。
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 RedisClient = Annotated[aioredis.Redis, Depends(get_redis)]
 
-# Bearer token scheme used to extract the access token from the
-# ``Authorization`` header. ``auto_error=False`` lets us raise our own
-# ``BizException`` (with a 401 status) instead of FastAPI's default 403.
+# 用于从 ``Authorization`` 头中提取访问令牌的 Bearer 令牌方案。
+# ``auto_error=False`` 使我们能够抛出自定义的 ``BizException``（状态码 401），
+# 而不是 FastAPI 默认的 403。
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
@@ -34,20 +33,19 @@ async def get_current_user(
     db: DbSession,
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> User:
-    """Validate the Bearer access token and return the current user.
+    """校验 Bearer 访问令牌并返回当前用户。
 
     Args:
-        db: The active async session (injected via :data:`DbSession`).
-        credentials: The Bearer credentials extracted from the
-            ``Authorization`` header, or ``None`` if absent.
+        db: 当前的异步会话（通过 :data:`DbSession` 注入）。
+        credentials: 从 ``Authorization`` 头中提取的 Bearer 凭证；若不存在则为
+            ``None``。
 
     Returns:
-        The authenticated :class:`User`.
+        已认证的 :class:`User`。
 
     Raises:
-        BizException: If no credentials are present, the token is invalid,
-            the user no longer exists, or the account is disabled. All
-            cases use ``http_status=401``.
+        BizException: 若无凭证、令牌无效、用户已不存在或账号被禁用。所有
+            情况均使用 ``http_status=401``。
     """
     if credentials is None:
         raise BizException("not authenticated", code=CODE_AUTH_ERROR, http_status=401)
@@ -61,26 +59,24 @@ async def get_current_user(
     return user
 
 
-# Annotated alias for concise injection of the current user into routes.
+# 用于将当前用户简洁注入路由的带注解别名。
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
-# Forbidden error code (2xxxx – authorisation).
+# 禁止访问错误码（2xxxx —— 授权）。
 CODE_FORBIDDEN = 20005
 
 
 async def get_admin_user(current_user: CurrentUser) -> User:
-    """Ensure the current user has the ``admin`` role.
+    """确保当前用户具有 ``admin`` 角色。
 
     Args:
-        current_user: The authenticated user (injected via
-            :data:`CurrentUser`).
+        current_user: 已认证的用户（通过 :data:`CurrentUser` 注入）。
 
     Returns:
-        The same user instance if they are an admin.
+        若该用户是管理员，则返回同一用户实例。
 
     Raises:
-        BizException: If the user is not an admin (code ``20005``,
-            ``http_status=403``).
+        BizException: 若用户不是管理员（code ``20005``，``http_status=403``）。
     """
     if current_user.role != UserRole.admin:
         raise BizException(
@@ -91,7 +87,7 @@ async def get_admin_user(current_user: CurrentUser) -> User:
     return current_user
 
 
-# Annotated alias for concise injection of an admin user into routes.
+# 用于将管理员用户简洁注入路由的带注解别名。
 AdminUser = Annotated[User, Depends(get_admin_user)]
 
 __all__ = [

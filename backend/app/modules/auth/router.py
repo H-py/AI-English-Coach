@@ -1,8 +1,7 @@
-"""HTTP routes for authentication: register, login, refresh, and logout.
+"""认证相关 HTTP 路由：注册、登录、刷新和登出。
 
-All auth endpoints are public except ``/auth/logout``, which requires an
-authenticated user so that the caller is known (even though logout itself
-is stateless on the server).
+除 ``/auth/logout`` 外，所有认证端点都是公开的。``/auth/logout`` 需要
+已认证用户，以便知道调用者是谁（尽管登出本身在服务端是无状态的）。
 """
 
 from typing import Any
@@ -25,34 +24,33 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=ResponseModel[LoginResponse])
 async def register_endpoint(data: RegisterRequest, db: DbSession) -> dict:
-    """Register a new account and return tokens plus the created user."""
+    """注册新账号，并返回令牌及创建的用户。"""
     result = await register(db, data)
     return success(result)
 
 
 @router.post("/login", response_model=ResponseModel[LoginResponse])
 async def login_endpoint(data: LoginRequest, db: DbSession) -> dict:
-    """Authenticate with email and password, returning tokens plus the user."""
+    """使用邮箱和密码进行认证，返回令牌及用户信息。"""
     result = await login(db, data)
     return success(result)
 
 
 @router.post("/refresh", response_model=ResponseModel[TokenResponse])
 async def refresh_endpoint(data: RefreshRequest, db: DbSession) -> dict:
-    """Exchange a refresh token for a new access token."""
+    """用刷新令牌换取新的访问令牌。"""
     result = await refresh_token(db, data)
     return success(result)
 
 
 @router.post("/logout", response_model=ResponseModel[Any])
 async def logout_endpoint(current_user: CurrentUser) -> dict:
-    """Stateless logout.
+    """无状态登出。
 
-    The server keeps no session state, so logout is a no-op: clients simply
-    discard their access and refresh tokens. The ``current_user`` dependency
-    is still required so that only authenticated callers can reach this
-    endpoint.
+    服务端不保存会话状态，因此登出是一个空操作：客户端只需丢弃自己的
+    访问令牌和刷新令牌。``current_user`` 依赖仍然必需，以确保只有已
+    认证的调用者才能访问此端点。
     """
-    # current_user is resolved by the dependency; logout itself is stateless.
+    # current_user 由依赖解析；登出本身是无状态的。
     _ = current_user
     return success(None)

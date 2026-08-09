@@ -1,9 +1,8 @@
-"""Database access layer for the article module.
+"""article 模块的数据库访问层。
 
-All functions are async and operate on the shared :class:`AsyncSession`.
-They perform the persistence mechanics (``add`` / ``flush`` / ``refresh`` /
-``execute``) while leaving transaction commit/rollback to the ``get_db``
-dependency, which wraps each request in a single transaction.
+所有函数均为异步，并基于共享的 :class:`AsyncSession` 操作。它们负责持久化
+机制（``add`` / ``flush`` / ``refresh`` / ``execute``），而事务的提交/回滚
+则交由 ``get_db`` 依赖处理——后者将每个请求包裹在单个事务中。
 """
 
 from typing import Optional
@@ -19,14 +18,14 @@ from app.modules.article.schemas import ArticleCreate
 async def get_article_by_id(
     db: AsyncSession, article_id: int
 ) -> Optional[Article]:
-    """Fetch a single article by its primary key.
+    """根据主键获取单篇文章。
 
     Args:
-        db: The active async session.
-        article_id: The article's primary key.
+        db: 当前活跃的异步会话。
+        article_id: 文章的主键。
 
     Returns:
-        The :class:`Article` instance, or ``None`` if no article matches.
+        :class:`Article` 实例；若无匹配文章则返回 ``None``。
     """
     result = await db.execute(select(Article).where(Article.id == article_id))
     return result.scalars().first()
@@ -39,45 +38,43 @@ async def list_articles(
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[Article], int]:
-    """List published articles with optional filtering and pagination.
+    """列出已发布文章，支持可选的筛选与分页。
 
-    Only articles with ``is_published == True`` are returned. Results are
-    ordered by ``created_at`` descending (newest first).
+    仅返回 ``is_published == True`` 的文章。结果按 ``created_at`` 倒序
+    （最新优先）排列。
 
     Args:
-        db: The active async session.
-        difficulty: Optional CEFR difficulty level to filter by.
-        tag: Optional tag string to filter by (articles whose ``tags``
-            JSON array contains the given tag).
-        page: The 1-based page number.
-        page_size: The number of items per page.
+        db: 当前活跃的异步会话。
+        difficulty: 可选的 CEFR 难度等级筛选条件。
+        tag: 可选的标签字符串筛选条件（筛选 ``tags`` JSON 数组中
+            包含该标签的文章）。
+        page: 从 1 开始的页码。
+        page_size: 每页条数。
 
     Returns:
-        A tuple of ``(items, total)`` where ``items`` is the list of
-        :class:`Article` instances for the requested page and ``total``
-        is the total count of matching articles.
+        一个 ``(items, total)`` 元组，其中 ``items`` 为请求页对应的
+        :class:`Article` 实例列表，``total`` 为匹配文章的总数。
     """
-    # Base filter: only published articles.
+    # 基础过滤条件：仅已发布文章。
     conditions = [Article.is_published.is_(True)]
 
     if difficulty is not None:
         conditions.append(Article.difficulty == difficulty)
 
     if tag is not None:
-        # Cast the JSON column to JSONB and use the containment operator
-        # (``@>``) to check whether the tags array contains the given tag.
-        # This is a PostgreSQL-specific optimisation that avoids fetching
-        # all rows for tag filtering.
+        # 将 JSON 列转换为 JSONB 并使用包含操作符（``@>``）来判断
+        # tags 数组中是否包含指定标签。这是 PostgreSQL 专属的优化，
+        # 可避免为标签过滤而取出全部行。
         conditions.append(
             cast(Article.tags, JSONB).contains([tag])
         )
 
-    # Count query for total matches.
+    # 用于统计总匹配数的查询。
     count_stmt = select(func.count()).select_from(Article).where(*conditions)
     total_result = await db.execute(count_stmt)
     total = total_result.scalar() or 0
 
-    # Data query with ordering and pagination.
+    # 带排序与分页的数据查询。
     offset = (page - 1) * page_size
     data_stmt = (
         select(Article)
@@ -95,20 +92,19 @@ async def list_articles(
 async def create_article(
     db: AsyncSession, data: ArticleCreate, word_count: int
 ) -> Article:
-    """Create and persist a new article.
+    """创建并持久化一篇新文章。
 
-    The article is flushed (not committed) so that server-side defaults
-    such as ``id`` and ``created_at`` are populated and available on the
-    returned instance, while the outer request transaction retains commit
-    control.
+    文章会被 flush（而非 commit），以便服务端默认值（如 ``id`` 和
+    ``created_at``）被填充并出现在返回的实例上，同时外层请求事务
+    仍保留提交控制权。
 
     Args:
-        db: The active async session.
-        data: The validated create payload.
-        word_count: The pre-computed word count for the article content.
+        db: 当前活跃的异步会话。
+        data: 已校验的创建载荷。
+        word_count: 文章正文预先计算好的字数。
 
     Returns:
-        The newly created :class:`Article` with refreshed attributes.
+        新建的 :class:`Article`，属性已刷新。
     """
     article = Article(
         title=data.title,
@@ -131,19 +127,18 @@ async def create_article(
 async def update_article(
     db: AsyncSession, article: Article, data: dict
 ) -> Article:
-    """Apply a set of field updates to an existing article.
+    """对已有文章应用一组字段更新。
 
-    Only the keys present in ``data`` are written. The changes are flushed
-    so that ``onupdate`` defaults (e.g. ``updated_at``) take effect, and
-    the instance is refreshed before being returned.
+    仅写入 ``data`` 中出现的键。更改会被 flush，以便 ``onupdate`` 默认值
+    （例如 ``updated_at``）生效，并在返回前刷新实例。
 
     Args:
-        db: The active async session.
-        article: The :class:`Article` instance to update.
-        data: A mapping of attribute name to new value.
+        db: 当前活跃的异步会话。
+        article: 待更新的 :class:`Article` 实例。
+        data: 属性名到新值的映射。
 
     Returns:
-        The updated :class:`Article` with refreshed attributes.
+        更新后的 :class:`Article`，属性已刷新。
     """
     for key, value in data.items():
         setattr(article, key, value)
@@ -161,27 +156,25 @@ async def list_all_articles(
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[Article], int]:
-    """List all articles (including unpublished) with optional filtering, search, and pagination.
+    """列出全部文章（含未发布），支持可选的筛选、搜索与分页。
 
-    Intended for admin use. Unlike :func:`list_articles`, this function does
-    not filter by ``is_published`` by default, allowing administrators to
-    manage draft and unpublished content. Supports a case-insensitive
-    substring search on the article title.
+    供管理员使用。与 :func:`list_articles` 不同，此函数默认不会按
+    ``is_published`` 过滤，使管理员可以管理草稿和未发布内容。支持
+    对文章标题进行不区分大小写的子串搜索。
 
     Args:
-        db: The active async session.
-        search: Optional case-insensitive substring to match against the title.
-        difficulty: Optional CEFR difficulty level to filter by.
-        tag: Optional tag string to filter by (articles whose ``tags``
-            JSON array contains the given tag).
-        is_published: Optional flag to filter by publication status.
-        page: The 1-based page number.
-        page_size: The number of items per page.
+        db: 当前活跃的异步会话。
+        search: 可选的不区分大小写子串，用于匹配标题。
+        difficulty: 可选的 CEFR 难度等级筛选条件。
+        tag: 可选的标签字符串筛选条件（筛选 ``tags`` JSON 数组中
+            包含该标签的文章）。
+        is_published: 可选的发布状态筛选标志。
+        page: 从 1 开始的页码。
+        page_size: 每页条数。
 
     Returns:
-        A tuple of ``(items, total)`` where ``items`` is the list of
-        :class:`Article` instances for the requested page and ``total``
-        is the total count of matching articles.
+        一个 ``(items, total)`` 元组，其中 ``items`` 为请求页对应的
+        :class:`Article` 实例列表，``total`` 为匹配文章的总数。
     """
     conditions = []
 
@@ -199,12 +192,12 @@ async def list_all_articles(
     if is_published is not None:
         conditions.append(Article.is_published.is_(is_published))
 
-    # Count query for total matches.
+    # 用于统计总匹配数的查询。
     count_stmt = select(func.count()).select_from(Article).where(*conditions)
     total_result = await db.execute(count_stmt)
     total = total_result.scalar() or 0
 
-    # Data query with ordering and pagination.
+    # 带排序与分页的数据查询。
     offset = (page - 1) * page_size
     data_stmt = (
         select(Article)
@@ -220,11 +213,11 @@ async def list_all_articles(
 
 
 async def delete_article(db: AsyncSession, article: Article) -> None:
-    """Delete an article from the database.
+    """从数据库中删除一篇文章。
 
     Args:
-        db: The active async session.
-        article: The :class:`Article` instance to delete.
+        db: 当前活跃的异步会话。
+        article: 待删除的 :class:`Article` 实例。
     """
     await db.delete(article)
     await db.flush()
@@ -233,14 +226,14 @@ async def delete_article(db: AsyncSession, article: Article) -> None:
 async def increment_view_count(
     db: AsyncSession, article_id: int
 ) -> None:
-    """Atomically increment the view count of an article by one.
+    """将文章的浏览次数原子性地加一。
 
-    Uses an ``UPDATE ... SET view_count = view_count + 1`` statement to
-    avoid race conditions that could arise from a read-modify-write cycle.
+    使用 ``UPDATE ... SET view_count = view_count + 1`` 语句，以避免
+    读-改-写循环可能引发的竞态条件。
 
     Args:
-        db: The active async session.
-        article_id: The article's primary key.
+        db: 当前活跃的异步会话。
+        article_id: 文章的主键。
     """
     stmt = (
         update(Article)
@@ -252,17 +245,17 @@ async def increment_view_count(
 
 
 async def get_all_tags(db: AsyncSession) -> list[str]:
-    """Return a sorted list of all unique tags used by published articles.
+    """返回已发布文章使用的所有唯一标签的排序列表。
 
-    Fetches the ``tags`` column for every published article and deduplicates
-    the tag values in Python. This keeps the query portable across databases
-    rather than relying on PostgreSQL-specific JSON functions.
+    取出每篇已发布文章的 ``tags`` 列，并在 Python 中对标签去重。这样
+    可以保持查询在不同数据库间的可移植性，而不依赖 PostgreSQL 专属的
+    JSON 函数。
 
     Args:
-        db: The active async session.
+        db: 当前活跃的异步会话。
 
     Returns:
-        A sorted list of unique tag strings.
+        排好序的唯一标签字符串列表。
     """
     stmt = select(Article.tags).where(Article.is_published.is_(True))
     result = await db.execute(stmt)

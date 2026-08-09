@@ -1,11 +1,11 @@
-"""HTTP routes for the admin module.
+"""admin 模块的 HTTP 路由。
 
-All endpoints require the ``AdminUser`` dependency (authenticated user with
-the ``admin`` role). Routes are organised under three prefixes:
+所有端点都需要 ``AdminUser`` 依赖（即已认证且具备 ``admin`` 角色的用户）。
+路由按三个前缀组织：
 
-* ``/admin/dashboard`` — overview statistics
-* ``/admin/articles`` — article CRUD (including unpublished content)
-* ``/admin/users`` — user CRUD (with self-delete / self-demotion protection)
+* ``/admin/dashboard`` —— 概览统计
+* ``/admin/articles`` —— 文章增删改查（包含未发布内容）
+* ``/admin/users`` —— 用户增删改查（包含禁止自删 / 禁止自我降级保护）
 """
 
 from typing import Optional
@@ -43,7 +43,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 # ---------------------------------------------------------------------------
-# Dashboard
+# 仪表盘
 # ---------------------------------------------------------------------------
 
 @router.get(
@@ -55,13 +55,13 @@ async def get_dashboard(
     db: DbSession,
     _: AdminUser,
 ) -> dict:
-    """Return high-level statistics for the admin overview page."""
+    """返回管理概览页面的高层统计数据。"""
     result = await admin_get_dashboard(db)
     return success(result)
 
 
 # ---------------------------------------------------------------------------
-# Article management
+# 文章管理
 # ---------------------------------------------------------------------------
 
 @router.get(
@@ -79,7 +79,7 @@ async def list_articles_endpoint(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> dict:
-    """List all articles (including unpublished) with filtering and search."""
+    """列出所有文章（包含未发布），支持筛选与搜索。"""
     params = AdminArticleQueryParams(
         search=search,
         difficulty=difficulty,
@@ -102,7 +102,7 @@ async def get_article_endpoint(
     db: DbSession,
     _: AdminUser,
 ) -> dict:
-    """Return the full detail of an article (does not increment view count)."""
+    """返回文章的完整详情（不会增加浏览次数）。"""
     result = await admin_get_article(db, article_id)
     return success(result)
 
@@ -118,7 +118,7 @@ async def create_article_endpoint(
     db: DbSession,
     _: AdminUser,
 ) -> dict:
-    """Create a new article (word count is auto-calculated)."""
+    """创建新文章（字数会自动计算）。"""
     result = await admin_create_article(db, data)
     return success(result)
 
@@ -134,7 +134,7 @@ async def update_article_endpoint(
     db: DbSession,
     _: AdminUser,
 ) -> dict:
-    """Partially update an existing article."""
+    """对已有文章进行部分更新。"""
     result = await admin_update_article(db, article_id, data)
     return success(result)
 
@@ -149,13 +149,13 @@ async def delete_article_endpoint(
     db: DbSession,
     _: AdminUser,
 ) -> dict:
-    """Delete an article by its id."""
+    """根据 id 删除文章。"""
     await admin_delete_article(db, article_id)
     return success(None)
 
 
 # ---------------------------------------------------------------------------
-# User management
+# 用户管理
 # ---------------------------------------------------------------------------
 
 @router.get(
@@ -172,7 +172,7 @@ async def list_users_endpoint(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> dict:
-    """List all users with optional filtering and search."""
+    """列出所有用户，支持可选的筛选与搜索。"""
     params = AdminUserQueryParams(
         search=search,
         role=role,
@@ -194,7 +194,7 @@ async def get_user_endpoint(
     db: DbSession,
     _: AdminUser,
 ) -> dict:
-    """Return the full detail of a single user."""
+    """返回单个用户的完整详情。"""
     result = await admin_get_user(db, user_id)
     return success(result)
 
@@ -210,7 +210,7 @@ async def update_user_endpoint(
     db: DbSession,
     current_user: AdminUser,
 ) -> dict:
-    """Partially update a user (role, active status, etc.)."""
+    """对用户进行部分更新（角色、启用状态等）。"""
     result = await admin_update_user(db, user_id, data, current_user)
     return success(result)
 
@@ -225,6 +225,6 @@ async def delete_user_endpoint(
     db: DbSession,
     current_user: AdminUser,
 ) -> dict:
-    """Delete a user by their id (cannot delete self)."""
+    """根据 id 删除用户（不能删除自己）。"""
     await admin_delete_user(db, user_id, current_user)
     return success(None)

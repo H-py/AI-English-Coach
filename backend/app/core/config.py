@@ -1,8 +1,7 @@
-"""Application configuration based on pydantic-settings.
+"""基于 pydantic-settings 的应用配置。
 
-All environment variables are read from the process environment (and the
-``backend/.env`` file when present). The :class:`Settings` instance is the
-single source of truth for configuration across the whole backend.
+所有环境变量均从进程环境中读取（当 ``backend/.env`` 文件存在时也从中读取）。
+:class:`Settings` 实例是整个后端配置的唯一可信来源。
 """
 
 from functools import lru_cache
@@ -13,9 +12,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Strongly-typed application settings.
+    """强类型应用配置。
 
-    Attributes mirror the variables documented in ``backend/.env.example``.
+    属性与 ``backend/.env.example`` 中记录的变量一一对应。
     """
 
     model_config = SettingsConfigDict(
@@ -25,14 +24,14 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # ---- Application ----
+    # ---- 应用 ----
     APP_NAME: str = "AI Reading Coach"
     APP_ENV: str = "development"
     APP_DEBUG: bool = True
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8000
 
-    # ---- Database ----
+    # ---- 数据库 ----
     DATABASE_URL: str = (
         "postgresql+asyncpg://postgres:postgres@localhost:5432/ai_reading_coach"
     )
@@ -59,32 +58,32 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # ---- Admin (initial admin account for init script) ----
+    # ---- 管理员（用于初始化脚本的初始管理员账号）----
     ADMIN_EMAIL: str = "admin@example.com"
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "admin123456"
 
     # ---- CORS ----
-    # Accepts a comma-separated list of origins in the env var.
+    # 接受环境变量中以逗号分隔的来源列表。
     CORS_ORIGINS: Union[str, List[str]] = ["http://localhost:5173"]
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def _split_cors_origins(cls, value: object) -> List[str]:
-        """Allow ``CORS_ORIGINS`` to be a comma-separated string in the env."""
+        """允许 ``CORS_ORIGINS`` 在环境变量中以逗号分隔的字符串形式提供。"""
         if isinstance(value, str) and not value.startswith("["):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value  # type: ignore[return-value]
 
     @property
     def is_production(self) -> bool:
-        """Whether the application runs in production mode."""
+        """判断应用是否以生产模式运行。"""
         return self.APP_ENV == "production"
 
 
 @lru_cache
 def get_settings() -> Settings:
-    """Return a cached :class:`Settings` singleton."""
+    """返回缓存的 :class:`Settings` 单例。"""
     return Settings()
 
 

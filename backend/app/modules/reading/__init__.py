@@ -1,4 +1,4 @@
-"""Reading module: AI-assisted reading features including word and sentence
-collections, reading history tracking, and conversational AI support that
-helps learners understand articles in context.
+"""Reading module: word and sentence collections, reading history tracking,
+and AI-assisted reading features that help learners collect and review
+vocabulary and sentences while reading articles.
 """

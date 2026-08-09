@@ -1,9 +1,8 @@
-"""Pydantic schemas for the reading module.
+"""阅读模块的 Pydantic 模式（schema）。
 
-Describes the wire shapes for AI-interaction requests, word and sentence
-collections, and reading history. Written in the Pydantic v2 style with
-``model_config`` / ``ConfigDict`` and ``from_attributes`` enabled on the
-read schemas so they can be built directly from ORM instances.
+描述了单词和句子收藏、以及阅读历史的传输数据结构。
+采用 Pydantic v2 风格，使用 ``model_config`` / ``ConfigDict``，并在
+读取类模式上启用 ``from_attributes``，以便直接从 ORM 实例构建。
 """
 
 from datetime import datetime
@@ -14,54 +13,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.modules.reading.models import MasteryLevel
 
 
-# ---- AI interaction requests ------------------------------------------------
-
-
-class ExplainWordRequest(BaseModel):
-    """Request to explain a single word within its surrounding context."""
-
-    word: str = Field(min_length=1, max_length=255)
-    context: str
-    article_id: int
-
-
-class AnalyzeSentenceRequest(BaseModel):
-    """Request to analyze the structure of a single sentence."""
-
-    sentence: str
-    article_id: int
-
-
-class SentenceTranslationRequest(BaseModel):
-    """Request to translate a sentence into Chinese."""
-
-    sentence: str
-    article_id: int
-
-
-class ParagraphSummaryRequest(BaseModel):
-    """Request to summarize a single paragraph."""
-
-    paragraph: str
-    article_id: int
-
-
-class ChatRequest(BaseModel):
-    """Request to send a message to the article-aware AI coach."""
-
-    message: str
-    article_id: int
-
-
-# ---- Word collection schemas ------------------------------------------------
+# ---- 单词收藏模式 -----------------------------------------------------------
 
 
 class WordCollectionCreate(BaseModel):
-    """Payload for saving (upserting) a collected word.
+    """保存（upsert）收藏单词的载荷。
 
-    ``article_id`` and ``ai_explanation`` are optional because a learner
-    may save a word from a source other than an article, or before an AI
-    explanation has been generated.
+    ``article_id`` 和 ``ai_explanation`` 是可选的，因为学习者可能
+    从文章以外的来源收藏单词，或在 AI 解释尚未生成之前就收藏。
     """
 
     word: str = Field(min_length=1, max_length=255)
@@ -71,7 +30,7 @@ class WordCollectionCreate(BaseModel):
 
 
 class WordCollectionOut(BaseModel):
-    """Full representation of a collected word returned to clients."""
+    """返回给客户端的收藏单词的完整表示。"""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -89,10 +48,10 @@ class WordCollectionOut(BaseModel):
 
 
 class WordCollectionUpdate(BaseModel):
-    """Partial-update payload for a collected word's mastery tracking.
+    """收藏单词掌握情况的部分更新载荷。
 
-    Both fields are optional so that clients can update either the
-    mastery level, the study count, or both at once.
+    两个字段都是可选的，以便客户端可以只更新掌握程度、只更新学习次数，
+    或同时更新两者。
     """
 
     mastery_level: Optional[MasteryLevel] = None
@@ -100,17 +59,17 @@ class WordCollectionUpdate(BaseModel):
 
 
 class WordListResponse(BaseModel):
-    """Paginated list of collected words with a total count."""
+    """带总数统计的收藏单词分页列表。"""
 
     items: list[WordCollectionOut]
     total: int
 
 
-# ---- Sentence collection schemas --------------------------------------------
+# ---- 句子收藏模式 -----------------------------------------------------------
 
 
 class SentenceCollectionCreate(BaseModel):
-    """Payload for saving a collected sentence."""
+    """保存收藏句子的载荷。"""
 
     sentence: str
     article_id: Optional[int] = None
@@ -118,7 +77,7 @@ class SentenceCollectionCreate(BaseModel):
 
 
 class SentenceCollectionOut(BaseModel):
-    """Full representation of a collected sentence returned to clients."""
+    """返回给客户端的收藏句子的完整表示。"""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -131,33 +90,32 @@ class SentenceCollectionOut(BaseModel):
 
 
 class SentenceCollectionUpdate(BaseModel):
-    """Partial-update payload for a collected sentence's note.
+    """收藏句子备注的部分更新载荷。
 
-    Only ``note`` is updatable; the sentence text itself is immutable
-    once saved.
+    只有 ``note`` 可更新；句子文本一旦保存即不可变。
     """
 
     note: Optional[str] = None
 
 
 class SentenceListResponse(BaseModel):
-    """Paginated list of collected sentences with a total count."""
+    """带总数统计的收藏句子分页列表。"""
 
     items: list[SentenceCollectionOut]
     total: int
 
 
-# ---- Reading history schemas ------------------------------------------------
+# ---- 阅读历史模式 -----------------------------------------------------------
 
 
 class ReadingHistoryCreate(BaseModel):
-    """Payload for starting a new reading session."""
+    """开启新阅读会话的载荷。"""
 
     article_id: int
 
 
 class ReadingHistoryOut(BaseModel):
-    """Full representation of a reading-history entry returned to clients."""
+    """返回给客户端的阅读历史记录的完整表示。"""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -172,11 +130,10 @@ class ReadingHistoryOut(BaseModel):
 
 
 class ReadingHistoryUpdate(BaseModel):
-    """Partial-update payload for ending a reading session.
+    """结束阅读会话的部分更新载荷。
 
-    Typically both ``ended_at`` and ``duration_seconds`` are supplied
-    together when the learner stops reading, but each is optional so the
-    payload remains flexible.
+    通常学习者停止阅读时会同时提供 ``ended_at`` 和 ``duration_seconds``，
+    但两者都是可选的，以保持载荷的灵活性。
     """
 
     ended_at: Optional[datetime] = None
@@ -184,17 +141,17 @@ class ReadingHistoryUpdate(BaseModel):
 
 
 class ReadingHistoryListResponse(BaseModel):
-    """Paginated list of reading-history entries with a total count."""
+    """带总数统计的阅读历史记录分页列表。"""
 
     items: list[ReadingHistoryOut]
     total: int
 
 
 class ReadingHistoryWithArticleOut(BaseModel):
-    """Reading-history entry enriched with the article title.
+    """附加了文章标题的阅读历史记录。
 
-    Built from a ``(ReadingHistory, article_title)`` tuple returned by
-    :func:`list_histories_with_article` in the repository.
+    由仓库层 :func:`list_histories_with_article` 返回的
+    ``(ReadingHistory, article_title)`` 元组构建而成。
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -211,36 +168,7 @@ class ReadingHistoryWithArticleOut(BaseModel):
 
 
 class ReadingHistoryWithArticleListResponse(BaseModel):
-    """Paginated list of reading-history entries with article titles."""
+    """带文章标题的阅读历史记录分页列表。"""
 
     items: list[ReadingHistoryWithArticleOut]
-    total: int
-
-
-# ---- AI conversation schemas ------------------------------------------------
-
-
-class ConversationOut(BaseModel):
-    """A single AI conversation message returned to clients.
-
-    Each message is either a ``"user"`` message (the learner's question)
-    or an ``"assistant"`` message (the AI coach's reply).
-    """
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    role: str
-    content: str
-    created_at: datetime
-
-
-class ConversationListResponse(BaseModel):
-    """Chronologically ordered list of AI conversation messages.
-
-    Returned by the conversation-history endpoint so the frontend can
-    restore a user's chat session after a page refresh.
-    """
-
-    items: list[ConversationOut]
     total: int

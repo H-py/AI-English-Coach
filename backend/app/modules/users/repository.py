@@ -1,9 +1,9 @@
-"""Database access layer for the users module.
+"""users 模块的数据库访问层。
 
-All functions are async and operate on the shared :class:`AsyncSession`.
-They perform the persistence mechanics (``add`` / ``flush`` / ``refresh``)
-while leaving transaction commit/rollback to the ``get_db`` dependency,
-which wraps each request in a single transaction.
+所有函数均为异步函数，并操作共享的 :class:`AsyncSession`。
+它们负责持久化机制（``add`` / ``flush`` / ``refresh``），
+而事务的提交/回滚则交由 ``get_db`` 依赖完成，该依赖会将每个请求
+包裹在单个事务中。
 """
 
 from datetime import datetime, timezone
@@ -16,42 +16,42 @@ from app.modules.users.models import User, UserRole
 
 
 async def get_user_by_id(db: AsyncSession, user_id: int) -> Optional[User]:
-    """Fetch a single user by its primary key.
+    """按主键获取单个用户。
 
     Args:
-        db: The active async session.
-        user_id: The user's primary key.
+        db: 当前活跃的异步会话。
+        user_id: 用户的主键。
 
     Returns:
-        The :class:`User` instance, or ``None`` if no user matches.
+        :class:`User` 实例，若无匹配用户则返回 ``None``。
     """
     result = await db.execute(select(User).where(User.id == user_id))
     return result.scalars().first()
 
 
 async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
-    """Fetch a single user by its email address.
+    """按邮箱地址获取单个用户。
 
     Args:
-        db: The active async session.
-        email: The exact email to look up.
+        db: 当前活跃的异步会话。
+        email: 要查询的精确邮箱。
 
     Returns:
-        The :class:`User` instance, or ``None`` if no user matches.
+        :class:`User` 实例，若无匹配用户则返回 ``None``。
     """
     result = await db.execute(select(User).where(User.email == email))
     return result.scalars().first()
 
 
 async def get_user_by_username(db: AsyncSession, username: str) -> Optional[User]:
-    """Fetch a single user by its username.
+    """按用户名获取单个用户。
 
     Args:
-        db: The active async session.
-        username: The exact username to look up.
+        db: 当前活跃的异步会话。
+        username: 要查询的精确用户名。
 
     Returns:
-        The :class:`User` instance, or ``None`` if no user matches.
+        :class:`User` 实例，若无匹配用户则返回 ``None``。
     """
     result = await db.execute(select(User).where(User.username == username))
     return result.scalars().first()
@@ -64,21 +64,21 @@ async def create_user(
     password_hash: str,
     role: UserRole = UserRole.user,
 ) -> User:
-    """Create and persist a new user.
+    """创建并持久化一个新用户。
 
-    The user is flushed (not committed) so that server-side defaults such as
-    ``id`` and ``created_at`` are populated and available on the returned
-    instance, while the outer request transaction retains commit control.
+    用户会被 flush（而非 commit），以便 ``id`` 和 ``created_at`` 等
+    服务端默认值填充并可在返回的实例上访问，同时外层请求事务仍保留
+    提交控制权。
 
     Args:
-        db: The active async session.
-        email: The user's email address.
-        username: The user's display name.
-        password_hash: The pre-hashed password (never plain text).
-        role: The user's role (defaults to ``user``).
+        db: 当前活跃的异步会话。
+        email: 用户的邮箱地址。
+        username: 用户的显示名。
+        password_hash: 已哈希的密码（绝不传入明文）。
+        role: 用户的角色（默认为 ``user``）。
 
     Returns:
-        The newly created :class:`User` with refreshed attributes.
+        新创建的、已刷新属性的 :class:`User`。
     """
     user = User(
         email=email,
@@ -93,19 +93,18 @@ async def create_user(
 
 
 async def update_user(db: AsyncSession, user: User, data: dict) -> User:
-    """Apply a set of field updates to an existing user.
+    """对已有用户应用一组字段更新。
 
-    Only the keys present in ``data`` are written. The changes are flushed so
-    that ``onupdate`` defaults (e.g. ``updated_at``) take effect, and the
-    instance is refreshed before being returned.
+    只写入 ``data`` 中存在的键。更改会被 flush，以便 ``onupdate``
+    默认值（如 ``updated_at``）生效，并在返回前刷新实例。
 
     Args:
-        db: The active async session.
-        user: The :class:`User` instance to update.
-        data: A mapping of attribute name to new value.
+        db: 当前活跃的异步会话。
+        user: 待更新的 :class:`User` 实例。
+        data: 属性名到新值的映射。
 
     Returns:
-        The updated :class:`User` with refreshed attributes.
+        更新后并刷新属性的 :class:`User`。
     """
     for key, value in data.items():
         setattr(user, key, value)
@@ -115,14 +114,14 @@ async def update_user(db: AsyncSession, user: User, data: dict) -> User:
 
 
 async def update_last_login(db: AsyncSession, user: User) -> User:
-    """Stamp the user's ``last_login_at`` to the current UTC time.
+    """将用户的 ``last_login_at`` 标记为当前 UTC 时间。
 
     Args:
-        db: The active async session.
-        user: The :class:`User` instance that just authenticated.
+        db: 当前活跃的异步会话。
+        user: 刚完成认证的 :class:`User` 实例。
 
     Returns:
-        The updated :class:`User` with refreshed attributes.
+        更新后并刷新属性的 :class:`User`。
     """
     user.last_login_at = datetime.now(timezone.utc)
     await db.flush()
@@ -138,19 +137,18 @@ async def list_users(
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[User], int]:
-    """List users with optional filtering, search, and pagination.
+    """列出用户，支持可选的过滤、搜索和分页。
 
     Args:
-        db: The active async session.
-        search: Optional case-insensitive substring to match against email
-            or username.
-        role: Optional role to filter by.
-        is_active: Optional active status to filter by.
-        page: The 1-based page number.
-        page_size: The number of items per page.
+        db: 当前活跃的异步会话。
+        search: 可选，不区分大小写的子串，用于匹配邮箱或用户名。
+        role: 可选，按角色过滤。
+        is_active: 可选，按激活状态过滤。
+        page: 从 1 开始的页码。
+        page_size: 每页条数。
 
     Returns:
-        A tuple of ``(items, total)``.
+        ``(items, total)`` 元组。
     """
     conditions = []
 
@@ -187,11 +185,11 @@ async def list_users(
 
 
 async def delete_user(db: AsyncSession, user: User) -> None:
-    """Delete a user from the database.
+    """从数据库中删除一个用户。
 
     Args:
-        db: The active async session.
-        user: The :class:`User` instance to delete.
+        db: 当前活跃的异步会话。
+        user: 待删除的 :class:`User` 实例。
     """
     await db.delete(user)
     await db.flush()

@@ -1,11 +1,9 @@
-"""HTTP routes for the article module (read-only for regular users).
+"""article 模块的 HTTP 路由（对普通用户只读）。
 
-Provides list, detail, and tag-list endpoints. All endpoints require
-authentication (``CurrentUser``). Article creation, update, and deletion
-are handled by the admin module under ``/admin/articles``.
+提供列表、详情和标签列表端点。所有端点均需认证（``CurrentUser``）。
+文章的创建、更新和删除由 admin 模块在 ``/admin/articles`` 下处理。
 
-The ``/tags`` route is declared before ``/{article_id}`` to avoid
-path-matching conflicts.
+``/tags`` 路由声明在 ``/{article_id}`` 之前，以避免路径匹配冲突。
 """
 
 from typing import Optional
@@ -42,7 +40,7 @@ async def list_articles_endpoint(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> dict:
-    """List published articles with optional filtering and pagination."""
+    """列出已发布文章，支持可选的筛选与分页。"""
     params = ArticleQueryParams(
         difficulty=difficulty, tag=tag, page=page, page_size=page_size
     )
@@ -59,7 +57,7 @@ async def list_tags_endpoint(
     db: DbSession,
     current_user: CurrentUser,
 ) -> dict:
-    """Return all unique tags used by published articles."""
+    """返回已发布文章使用的所有唯一标签。"""
     tags = await get_tags(db)
     return success(tags)
 
@@ -74,6 +72,6 @@ async def get_article_endpoint(
     db: DbSession,
     current_user: CurrentUser,
 ) -> dict:
-    """Return the full detail of a single article (increments view count)."""
+    """返回单篇文章的完整详情（会增加浏览次数）。"""
     article = await get_article_detail(db, article_id)
     return success(article)

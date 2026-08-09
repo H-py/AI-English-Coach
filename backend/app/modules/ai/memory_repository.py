@@ -1,9 +1,8 @@
-"""Database access layer for AI memory and user profile tables.
+"""AI 记忆与用户画像表的数据库访问层。
 
-All functions are async and operate on the shared :class:`AsyncSession`.
-They handle persistence mechanics (``add`` / ``flush`` / ``refresh`` /
-``execute``) while leaving transaction commit/rollback to the ``get_db``
-dependency.
+所有函数均为异步函数，并操作共享的 :class:`AsyncSession`。
+它们负责持久化机制（``add`` / ``flush`` / ``refresh`` / ``execute``），
+而事务的提交/回滚则交由 ``get_db`` 依赖完成。
 """
 
 from typing import Optional
@@ -11,28 +10,27 @@ from typing import Optional
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.reading.models import AiConversation, AiMemory, UserProfile
+from app.modules.ai.models import AiConversation, AiMemory, UserProfile
 
 
-# ---- Unsummarized messages (short-term memory source) ----------------------
+# ---- 未摘要消息（短期记忆来源） --------------------------------------------
 
 
 async def get_unsummarized_messages(
     db: AsyncSession, user_id: int, article_id: int
 ) -> list[AiConversation]:
-    """Return all unsummarized messages for a user-article pair.
+    """返回某用户与某篇文章之间所有未摘要的消息。
 
-    Messages are ordered by ``id`` ascending (chronological) so the
-    caller can easily split off the oldest batch for summarization.
+    消息按 ``id`` 升序（按时间顺序）排列，以便调用方轻松切分出最早的
+    一批用于摘要。
 
     Args:
-        db: The active async session.
-        user_id: The chatting user's id.
-        article_id: The article the conversation is about.
+        db: 当前活跃的异步会话。
+        user_id: 发起聊天的用户 id。
+        article_id: 对话所围绕的文章。
 
     Returns:
-        A chronologically ordered list of unsummarized
-        :class:`AiConversation` messages.
+        按时间顺序排列的未摘要 :class:`AiConversation` 消息列表。
     """
     stmt = (
         select(AiConversation)
@@ -50,11 +48,11 @@ async def get_unsummarized_messages(
 async def mark_messages_summarized(
     db: AsyncSession, message_ids: list[int]
 ) -> None:
-    """Mark a batch of messages as summarized.
+    """将一批消息标记为已摘要。
 
     Args:
-        db: The active async session.
-        message_ids: The ids of the messages to mark.
+        db: 当前活跃的异步会话。
+        message_ids: 待标记消息的 id 列表。
     """
     if not message_ids:
         return
@@ -69,19 +67,19 @@ async def mark_messages_summarized(
 async def count_unsummarized_tokens(
     db: AsyncSession, user_id: int, article_id: int
 ) -> int:
-    """Count the total tokens of unsummarized messages.
+    """统计未摘要消息的总 token 数。
 
-    Uses the database's ``LENGTH`` function as a rough character proxy;
-    the caller converts to an estimated token count. This avoids loading
-    all message bodies into Python just to count them.
+    使用数据库的 ``LENGTH`` 函数作为字符数的粗略代理；调用方再将其
+    换算为估算的 token 数。这样避免了把所有消息正文加载到 Python 中
+    仅为计数。
 
     Args:
-        db: The active async session.
-        user_id: The chatting user's id.
-        article_id: The article the conversation is about.
+        db: 当前活跃的异步会话。
+        user_id: 发起聊天的用户 id。
+        article_id: 对话所围绕的文章。
 
     Returns:
-        The total character count of unsummarized message content.
+        未摘要消息内容的总字符数。
     """
     stmt = (
         select(func.coalesce(func.sum(func.length(AiConversation.content)), 0))
@@ -95,7 +93,7 @@ async def count_unsummarized_tokens(
     return result.scalar() or 0
 
 
-# ---- AI memories (long-term memory) ----------------------------------------
+# ---- AI 记忆（长期记忆） ---------------------------------------------------
 
 
 async def create_memory(
@@ -107,20 +105,20 @@ async def create_memory(
     importance: float,
     token_count: int,
 ) -> AiMemory:
-    """Create a new long-term memory entry.
+    """创建一条新的长期记忆条目。
 
     Args:
-        db: The active async session.
-        user_id: The owning user's id.
-        article_id: The related article, or ``None`` for global memories.
-        memory_type: One of ``summary`` / ``fact`` / ``mistake`` /
-            ``preference``.
-        content: The memory text (LLM-generated summary or fact).
-        importance: A 0.0-1.0 importance score.
-        token_count: The estimated token count of ``content``.
+        db: 当前活跃的异步会话。
+        user_id: 所属用户的 id。
+        article_id: 相关文章，``None`` 表示全局记忆。
+        memory_type: ``summary`` / ``fact`` / ``mistake`` /
+            ``preference`` 之一。
+        content: 记忆文本（LLM 生成的摘要或事实）。
+        importance: 0.0-1.0 的重要性评分。
+        token_count: ``content`` 的估算 token 数。
 
     Returns:
-        The newly created :class:`AiMemory`.
+        新创建的 :class:`AiMemory`。
     """
     memory = AiMemory(
         user_id=user_id,
@@ -139,23 +137,22 @@ async def create_memory(
 async def get_active_memories(
     db: AsyncSession, user_id: int, max_tokens: int = 2000
 ) -> list[AiMemory]:
-    """Load the most relevant active memories for a user.
+    """为用户加载最相关的、处于激活状态的记忆。
 
-    Memories are ordered by ``importance`` descending so the most
-    significant ones are loaded first. The function accumulates memories
-    until the token budget is exhausted.
+    记忆按 ``importance`` 降序排列，因此最重要的会优先加载。本函数
+    会累加记忆，直到 token 预算耗尽。
 
-    Global memories (``article_id IS NULL``) are always included; article-
-    specific memories are loaded only when the caller passes the article
-    id via the separate :func:`get_active_article_memories` function.
+    全局记忆（``article_id IS NULL``）始终包含在内；文章级记忆仅在
+    调用方通过单独的 :func:`get_active_article_memories` 函数传入文章
+    id 时才加载。
 
     Args:
-        db: The active async session.
-        user_id: The owning user's id.
-        max_tokens: The maximum total token budget for loaded memories.
+        db: 当前活跃的异步会话。
+        user_id: 所属用户的 id。
+        max_tokens: 加载记忆的最大总 token 预算。
 
     Returns:
-        A list of :class:`AiMemory` entries, most important first.
+        :class:`AiMemory` 条目列表，按重要性从高到低排列。
     """
     stmt = (
         select(AiMemory)
@@ -183,19 +180,18 @@ async def get_active_memories(
 async def get_active_article_memories(
     db: AsyncSession, user_id: int, article_id: int, max_tokens: int = 1000
 ) -> list[AiMemory]:
-    """Load article-specific active memories for a user.
+    """为用户加载某篇文章专用的、处于激活状态的记忆。
 
-    Similar to :func:`get_active_memories` but scoped to a specific
-    article.
+    类似于 :func:`get_active_memories`，但限定在某篇具体文章范围内。
 
     Args:
-        db: The active async session.
-        user_id: The owning user's id.
-        article_id: The article to load memories for.
-        max_tokens: The maximum total token budget.
+        db: 当前活跃的异步会话。
+        user_id: 所属用户的 id。
+        article_id: 要加载记忆的文章。
+        max_tokens: 最大总 token 预算。
 
     Returns:
-        A list of :class:`AiMemory` entries, most important first.
+        :class:`AiMemory` 条目列表，按重要性从高到低排列。
     """
     stmt = (
         select(AiMemory)
@@ -223,21 +219,19 @@ async def get_active_article_memories(
 async def get_all_active_memories(
     db: AsyncSession, user_id: int, max_tokens: int = 4000
 ) -> list[AiMemory]:
-    """Load all active memories for a user, regardless of article scope.
+    """为用户加载所有处于激活状态的记忆，不区分文章范围。
 
-    Combines both global (``article_id IS NULL``) and article-specific
-    memories into a single list, ordered by ``importance`` descending.
-    Used by the profile generator so it can synthesize the user's
-    learning profile from the full conversation history across all
-    articles.
+    将全局（``article_id IS NULL``）和文章级记忆合并为一个列表，按
+    ``importance`` 降序排列。供画像生成器使用，以便其从所有文章的
+    完整对话历史中综合出用户的学习画像。
 
     Args:
-        db: The active async session.
-        user_id: The owning user's id.
-        max_tokens: The maximum total token budget for loaded memories.
+        db: 当前活跃的异步会话。
+        user_id: 所属用户的 id。
+        max_tokens: 加载记忆的最大总 token 预算。
 
     Returns:
-        A list of :class:`AiMemory` entries, most important first.
+        :class:`AiMemory` 条目列表，按重要性从高到低排列。
     """
     stmt = (
         select(AiMemory)
@@ -264,17 +258,17 @@ async def get_all_active_memories(
 async def count_memories(
     db: AsyncSession, user_id: int, article_id: Optional[int] = None
 ) -> int:
-    """Count active memories for a user, optionally scoped to an article.
+    """统计用户处于激活状态的记忆数，可选按文章范围限定。
 
-    Used to decide whether a profile refresh should be triggered.
+    用于判断是否应触发画像刷新。
 
     Args:
-        db: The active async session.
-        user_id: The owning user's id.
-        article_id: Optional article scope.
+        db: 当前活跃的异步会话。
+        user_id: 所属用户的 id。
+        article_id: 可选的文章范围。
 
     Returns:
-        The number of active memory entries.
+        处于激活状态的记忆条目数。
     """
     conditions = [
         AiMemory.user_id == user_id,
@@ -291,14 +285,14 @@ async def count_memories(
 async def deactivate_article_memories(
     db: AsyncSession, user_id: int, article_id: int
 ) -> None:
-    """Mark all article-specific memories as inactive.
+    """将某篇文章的所有专用记忆标记为非激活。
 
-    Called when a new summary replaces old ones for the same article.
+    在新摘要替换同一文章的旧摘要时调用。
 
     Args:
-        db: The active async session.
-        user_id: The owning user's id.
-        article_id: The article whose memories to deactivate.
+        db: 当前活跃的异步会话。
+        user_id: 所属用户的 id。
+        article_id: 要停用记忆的文章。
     """
     await db.execute(
         update(AiMemory)
@@ -316,16 +310,15 @@ async def deactivate_article_memories(
 async def deactivate_global_facts(
     db: AsyncSession, user_id: int
 ) -> None:
-    """Mark all active global fact memories as inactive.
+    """将所有处于激活状态的全局事实记忆标记为非激活。
 
-    Called before creating a new user traits entry so that only the
-    latest traits remain active (``article_id IS NULL`` and
-    ``memory_type = 'fact'``). This prevents duplicate user trait
-    records from accumulating across summarization cycles.
+    在创建新的用户特征条目之前调用，以确保只有最新的特征保持激活
+    （``article_id IS NULL`` 且 ``memory_type = 'fact'``）。这样可以
+    防止跨摘要周期累积重复的用户特征记录。
 
     Args:
-        db: The active async session.
-        user_id: The owning user's id.
+        db: 当前活跃的异步会话。
+        user_id: 所属用户的 id。
     """
     await db.execute(
         update(AiMemory)
@@ -340,20 +333,20 @@ async def deactivate_global_facts(
     await db.flush()
 
 
-# ---- User profiles ---------------------------------------------------------
+# ---- 用户画像 --------------------------------------------------------------
 
 
 async def get_profile(
     db: AsyncSession, user_id: int
 ) -> Optional[UserProfile]:
-    """Fetch a user's profile, or ``None`` if not yet created.
+    """获取用户画像，若尚未创建则返回 ``None``。
 
     Args:
-        db: The active async session.
-        user_id: The user's id.
+        db: 当前活跃的异步会话。
+        user_id: 用户的 id。
 
     Returns:
-        The :class:`UserProfile`, or ``None``.
+        :class:`UserProfile`，或 ``None``。
     """
     result = await db.execute(
         select(UserProfile).where(UserProfile.user_id == user_id)
@@ -372,21 +365,21 @@ async def upsert_profile(
     common_mistakes: list[str],
     message_count: int,
 ) -> UserProfile:
-    """Create or update a user's profile.
+    """创建或更新用户画像。
 
     Args:
-        db: The active async session.
-        user_id: The user's id.
-        profile_summary: The natural-language profile text.
-        strengths: List of user strengths.
-        weaknesses: List of user weaknesses.
-        learning_style: The user's learning style.
-        interests: List of interest topics.
-        common_mistakes: List of recurring mistakes.
-        message_count: The total message count at this update.
+        db: 当前活跃的异步会话。
+        user_id: 用户的 id。
+        profile_summary: 自然语言形式的画像文本。
+        strengths: 用户优势列表。
+        weaknesses: 用户弱点列表。
+        learning_style: 用户的学习风格。
+        interests: 兴趣话题列表。
+        common_mistakes: 反复出现的错误列表。
+        message_count: 本次更新时的总消息数。
 
     Returns:
-        The created or updated :class:`UserProfile`.
+        创建或更新后的 :class:`UserProfile`。
     """
     existing = await get_profile(db, user_id)
 
@@ -423,21 +416,21 @@ async def upsert_profile(
 async def increment_message_count(
     db: AsyncSession, user_id: int, delta: int = 1
 ) -> None:
-    """Increment the message count on a user's profile.
+    """增加用户画像上的消息计数。
 
-    Creates a profile row with defaults if one does not exist yet.
+    若画像尚不存在，则以默认值创建一条记录。
 
     Args:
-        db: The active async session.
-        user_id: The user's id.
-        delta: The increment amount (default 1).
+        db: 当前活跃的异步会话。
+        user_id: 用户的 id。
+        delta: 增量（默认 1）。
     """
     existing = await get_profile(db, user_id)
     if existing is not None:
         existing.message_count += delta
         await db.flush()
     else:
-        # Create a stub profile that will be filled in later.
+        # 创建一个占位画像，稍后会被填充。
         profile = UserProfile(
             user_id=user_id,
             message_count=delta,

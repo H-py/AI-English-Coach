@@ -1,7 +1,7 @@
-"""Async Redis client utilities.
+"""异步 Redis 客户端工具。
 
-Creates a single :class:`redis.asyncio.Redis` client shared across the
-application and exposes a ``get_redis`` FastAPI dependency.
+创建一个在应用范围内共享的 :class:`redis.asyncio.Redis` 客户端，并提供
+``get_redis`` FastAPI 依赖。
 """
 
 from collections.abc import AsyncGenerator
@@ -10,7 +10,7 @@ import redis.asyncio as redis
 
 from app.core.config import settings
 
-# Shared async Redis client backed by the hiredis parser for performance.
+# 共享的异步 Redis 客户端，底层使用 hiredis 解析器以提升性能。
 redis_client: redis.Redis = redis.from_url(
     settings.REDIS_URL,
     decode_responses=True,
@@ -19,18 +19,18 @@ redis_client: redis.Redis = redis.from_url(
 
 
 async def get_redis() -> AsyncGenerator[redis.Redis, None]:
-    """FastAPI dependency that yields the shared Redis client.
+    """产出共享 Redis 客户端的 FastAPI 依赖。
 
-    The client itself is a long-lived connection pool, so it is yielded
-    directly rather than opened/closed per request.
+    客户端本身是一个长生命周期的连接池，因此直接产出，而不是按请求
+    打开/关闭。
     """
     try:
         yield redis_client
     finally:
-        # Connections are returned to the pool automatically; nothing to close.
+        # 连接会自动归还到连接池，无需关闭。
         pass
 
 
 async def close_redis() -> None:
-    """Close the Redis connection pool (called on application shutdown)."""
+    """关闭 Redis 连接池（在应用关闭时调用）。"""
     await redis_client.aclose()

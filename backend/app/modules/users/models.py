@@ -1,9 +1,10 @@
-"""User ORM model and English-level enumeration.
+"""用户 ORM 模型与英语水平枚举。
 
-Defines the ``users`` table and the :class:`EnglishLevel` enum used to track a
-learner's self-assessed proficiency. The model follows the SQLAlchemy 2.0
-``Mapped`` / ``mapped_column`` style and is registered on the shared
-:class:`~app.core.database.Base` so that Alembic autogenerate can discover it.
+定义了 ``users`` 表以及 :class:`EnglishLevel` 枚举，后者用于跟踪学习者
+自评的英语水平。模型采用 SQLAlchemy 2.0 的 ``Mapped`` /
+``mapped_column`` 风格，并注册到共享的
+:class:`~app.core.database.Base` 上，以便 Alembic 自动生成迁移时能够
+发现它。
 """
 
 import enum
@@ -17,7 +18,7 @@ from app.core.database import Base
 
 
 class EnglishLevel(enum.Enum):
-    """Self-assessed English proficiency levels for a learner."""
+    """学习者自评的英语水平等级。"""
 
     beginner = "beginner"
     intermediate = "intermediate"
@@ -25,19 +26,18 @@ class EnglishLevel(enum.Enum):
 
 
 class UserRole(enum.Enum):
-    """User role for authorization: regular user or administrator."""
+    """用于鉴权的用户角色：普通用户或管理员。"""
 
     user = "user"
     admin = "admin"
 
 
 class User(Base):
-    """Application user account.
+    """应用用户账号。
 
-    Stores authentication credentials (``password_hash``) alongside profile
-    metadata such as display name, avatar, English level, and activity /
-    login timestamps. Passwords are never stored in plain text; only the
-    bcrypt hash is persisted.
+    存储认证凭据（``password_hash``）以及诸如显示名、头像、英语水平和
+    活动/登录时间戳等画像元数据。密码绝不以明文存储，仅持久化 bcrypt
+    哈希值。
     """
 
     __tablename__ = "users"
@@ -83,5 +83,5 @@ class User(Base):
         onupdate=func.now(),
     )
 
-    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+    def __repr__(self) -> str:  # pragma: no cover - 调试辅助
         return f"<User id={self.id} email={self.email!r}>"

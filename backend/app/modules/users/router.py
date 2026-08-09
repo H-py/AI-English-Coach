@@ -1,8 +1,7 @@
-"""HTTP routes for the current user's own profile.
+"""当前用户自身画像的 HTTP 路由。
 
-All endpoints are scoped to the authenticated user (``/users/me``) and rely
-on the :func:`get_current_user` dependency to resolve the caller from the
-Bearer access token.
+所有端点都限定在已认证用户范围内（``/users/me``），并依赖
+:func:`get_current_user` 依赖从 Bearer 访问令牌中解析出调用者。
 """
 
 from fastapi import APIRouter
@@ -17,7 +16,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.get("/me", response_model=ResponseModel[UserOut])
 async def get_my_profile(current_user: CurrentUser) -> dict:
-    """Return the profile of the currently authenticated user."""
+    """返回当前已认证用户的画像。"""
     return success(UserOut.model_validate(current_user))
 
 
@@ -27,6 +26,6 @@ async def update_my_profile(
     db: DbSession,
     current_user: CurrentUser,
 ) -> dict:
-    """Update the profile of the currently authenticated user."""
+    """更新当前已认证用户的画像。"""
     updated = await update_profile(db, current_user.id, data)
     return success(updated)

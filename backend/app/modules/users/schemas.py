@@ -1,9 +1,8 @@
-"""Pydantic schemas for the users module.
+"""users 模块的 Pydantic 模式（schema）。
 
-These schemas describe the wire shapes used by the user profile endpoints:
-the shared base fields, the full read representation (``UserOut``), and the
-partial update payload (``UserUpdate``). They are written in the Pydantic v2
-style with ``model_config`` / ``ConfigDict``.
+这些模式描述了用户画像端点使用的传输数据结构：共享的基础字段、
+完整的读取表示（``UserOut``）以及部分更新载荷（``UserUpdate``）。
+采用 Pydantic v2 风格，使用 ``model_config`` / ``ConfigDict``。
 """
 
 from datetime import datetime
@@ -15,18 +14,17 @@ from app.modules.users.models import EnglishLevel, UserRole
 
 
 class UserBase(BaseModel):
-    """Shared user fields used by both request and response schemas."""
+    """请求与响应模式共用的用户字段。"""
 
     email: EmailStr
     username: str = Field(min_length=2, max_length=50)
 
 
 class UserOut(UserBase):
-    """Full user representation returned to clients.
+    """返回给客户端的完整用户表示。
 
-    Includes the persisted identifiers and metadata. ``from_attributes`` is
-    enabled so the model can be built directly from an ORM ``User`` instance
-    via :meth:`UserOut.model_validate`.
+    包含持久化的标识符和元数据。启用 ``from_attributes``，以便通过
+    :meth:`UserOut.model_validate` 直接从 ORM ``User`` 实例构建。
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -41,11 +39,10 @@ class UserOut(UserBase):
 
 
 class UserUpdate(BaseModel):
-    """Partial-update payload for the current user's profile.
+    """当前用户画像的部分更新载荷。
 
-    All fields are optional so that clients can submit only the fields they
-    wish to change. The service layer uses ``exclude_unset`` to apply only
-    the provided values.
+    所有字段都是可选的，以便客户端只提交希望修改的字段。服务层使用
+    ``exclude_unset`` 仅应用提供的值。
     """
 
     avatar_url: Optional[str] = None

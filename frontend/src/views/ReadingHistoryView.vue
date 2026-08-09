@@ -7,27 +7,26 @@ import { readingApi } from '@/api/reading'
 import type { ReadingHistoryWithArticle } from '@/types/reading'
 
 /**
- * Reading history page.
+ * 阅读历史页面。
  *
- * Features:
- *  - Card list of reading sessions: article title (clickable -> detail),
- *    article ID badge when title is missing, reading duration, start/end
- *    time, and a status tag (completed / in progress).
- *  - "Read again" affordance per card to jump back into the article.
- *  - Empty state (NEmpty), loading state (NSpin), pagination (NPagination).
+ * 功能：
+ *  - 卡片列表展示阅读记录：文章标题（可点击跳转详情）、文章 ID 徽章（标题缺失时显示）、
+ *    阅读时长、开始/结束时间、状态标签（已完成 / 阅读中）。
+ *  - 每张卡片提供「再次阅读」入口，跳转到文章详情页。
+ *  - 空状态（NEmpty）、加载状态（NSpin）、分页（NPagination）。
  *
- * Data is fetched directly via readingApi (not a store); the page manages
- * its own list state, mirroring the VocabularyView pattern.
+ * 数据通过 readingApi 直接拉取（不经过 store），页面自行管理列表状态，
+ * 与 VocabularyView 的模式一致。
  */
 
 const { t } = useI18n()
 const router = useRouter()
 
 // ============================================================
-//  Helpers
+//  辅助函数
 // ============================================================
 
-/** Format an ISO datetime string into a locale-aware readable string. */
+/** 将 ISO 时间字符串格式化为本地可读字符串 */
 function formatDateTime(iso: string | null): string {
   if (!iso) return ''
   const d = new Date(iso)
@@ -56,7 +55,7 @@ function goToArticle(articleId: number): void {
 }
 
 // ============================================================
-//  List state
+//  列表状态
 // ============================================================
 
 const history = ref<ReadingHistoryWithArticle[]>([])
@@ -66,10 +65,10 @@ const page = ref(1)
 const pageSize = ref(10)
 
 // ============================================================
-//  Data fetching
+//  数据拉取
 // ============================================================
 
-/** Fetch the reading history list for the current page. */
+/** 拉取当前页的阅读历史列表 */
 async function fetchHistory(): Promise<void> {
   loading.value = true
   try {
@@ -80,7 +79,7 @@ async function fetchHistory(): Promise<void> {
     history.value = res.items
     total.value = res.total
   } catch {
-    // Errors are surfaced by the axios interceptor.
+    // 错误由 axios 响应拦截器统一提示
   } finally {
     loading.value = false
   }
@@ -255,7 +254,7 @@ onMounted(fetchHistory)
 </template>
 
 <style scoped>
-/* Read-again button: tighten focus ring for keyboard navigation */
+/* 再次阅读按钮：收紧键盘导航的焦点环 */
 .read-again:focus-visible {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;

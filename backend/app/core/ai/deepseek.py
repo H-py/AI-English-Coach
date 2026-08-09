@@ -1,9 +1,8 @@
-"""DeepSeek LLM provider implementation.
+"""DeepSeek LLM 提供方实现。
 
-Uses the OpenAI-compatible chat completions API via ``httpx.AsyncClient``
-(no OpenAI SDK dependency). Supports both non-streaming (``chat``) and
-streaming (``chat_stream``) modes, parsing Server-Sent Events line by line
-for the streaming variant.
+通过 ``httpx.AsyncClient`` 使用 OpenAI 兼容的聊天补全 API（不依赖 OpenAI
+SDK）。同时支持非流式（``chat``）和流式（``chat_stream``）两种模式，
+流式模式下会逐行解析 Server-Sent Events。
 """
 
 import json
@@ -16,35 +15,33 @@ from app.core.ai.provider import ChatMessage, LLMProvider, LLMResponse
 from app.core.config import settings
 from app.core.exceptions import BizException
 
-# Business error codes for AI-specific failures.
+# AI 特有失败的业务错误码。
 AI_NOT_CONFIGURED_CODE = 50001
 AI_API_ERROR_CODE = 50003
 
-# Request timeout in seconds. DeepSeek responses can be slow for long
-# generations, so we allow a generous window.
+# 请求超时（秒）。DeepSeek 在长篇生成时响应可能较慢，因此我们留出充裕的时间窗口。
 _REQUEST_TIMEOUT = 60.0
 
 
 class DeepSeekProvider(LLMProvider):
-    """LLM provider backed by the DeepSeek chat completions API.
+    """基于 DeepSeek 聊天补全 API 的 LLM 提供方。
 
-    The provider reads its configuration (API key, base URL, model name)
-    from application settings at construction time. All HTTP calls use
-    ``httpx.AsyncClient`` with a 60-second timeout.
+    该提供方在构造时从应用配置中读取其配置（API key、base URL、模型名）。
+    所有 HTTP 调用都使用 ``httpx.AsyncClient``，超时时间为 60 秒。
     """
 
     def __init__(self) -> None:
-        """Initialise the provider with settings from ``app.core.config``."""
+        """使用 ``app.core.config`` 中的配置初始化提供方。"""
         self._api_key: str = settings.DEEPSEEK_API_KEY
         self._base_url: str = settings.DEEPSEEK_BASE_URL.rstrip("/")
         self._model: str = settings.DEEPSEEK_MODEL
 
     # ------------------------------------------------------------------ #
-    # Internal helpers
+    # 内部辅助方法
     # ------------------------------------------------------------------ #
 
     def _ensure_configured(self) -> None:
-        """Raise a :class:`BizException` if the API key is not set."""
+        """若未设置 API key，则抛出 :class:`BizException`。"""
         if not self._api_key:
             raise BizException(
                 "AI provider not configured",
@@ -52,7 +49,7 @@ class DeepSeekProvider(LLMProvider):
             )
 
     def _build_headers(self) -> dict[str, str]:
-        """Build the standard request headers with Bearer auth."""
+        """构建带 Bearer 认证的标准请求头。"""
         return {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
@@ -65,7 +62,7 @@ class DeepSeekProvider(LLMProvider):
         max_tokens: Optional[int],
         stream: bool,
     ) -> dict[str, Any]:
-        """Build the JSON request body for the chat completions endpoint."""
+        """构建聊天补全端点的 JSON 请求体。"""
         payload: dict[str, Any] = {
             "model": self._model,
             "messages": [
@@ -80,14 +77,14 @@ class DeepSeekProvider(LLMProvider):
 
     @staticmethod
     def _raise_api_error(status_code: int, body: str) -> None:
-        """Raise a :class:`BizException` for a non-200 API response."""
+        """针对非 200 的 API 响应抛出 :class:`BizException`。"""
         raise BizException(
             f"DeepSeek API error: status={status_code}, body={body}",
             code=AI_API_ERROR_CODE,
         )
 
     # ------------------------------------------------------------------ #
-    # Public API
+    # 公共 API
     # ------------------------------------------------------------------ #
 
     async def chat(
@@ -97,22 +94,20 @@ class DeepSeekProvider(LLMProvider):
         max_tokens: Optional[int] = None,
         **kwargs: Any,
     ) -> LLMResponse:
-        """Send a non-streaming chat request and return the full response.
+        """发送非流式聊天请求并返回完整响应。
 
         Args:
-            messages: The conversation messages.
-            temperature: Sampling temperature (0.0 - 2.0).
-            max_tokens: Optional maximum number of tokens to generate.
-            **kwargs: Additional parameters forwarded to the API (currently
-                unused but kept for forward compatibility).
+            messages: 对话消息列表。
+            temperature: 采样温度（0.0 - 2.0）。
+            max_tokens: 可选，生成 token 的最大数量。
+            **kwargs: 转发给 API 的附加参数（当前未使用，但保留以备前向兼容）。
 
         Returns:
-            An :class:`LLMResponse` with the generated content, model name,
-            and token-usage statistics.
+            一个 :class:`LLMResponse`，包含生成内容、模型名以及 token 用量统计。
 
         Raises:
-            BizException: If the API key is not configured (code ``50001``)
-                or the API returns a non-200 status (code ``50003``).
+            BizException: 若 API key 未配置（code ``50001``）或 API 返回非 200
+                状态码（code ``50003``）。
         """
         self._ensure_configured()
 
@@ -143,24 +138,24 @@ class DeepSeekProvider(LLMProvider):
         max_tokens: Optional[int] = None,
         **kwargs: Any,
     ) -> AsyncGenerator[str, None]:
-        """Send a streaming chat request and yield content deltas.
+        """发送流式聊天请求并产出内容增量。
 
-        The DeepSeek API returns Server-Sent Events: each event is a line
-        prefixed with ``data:`` containing a JSON object with a ``choices``
-        array. The stream terminates with a ``data: [DONE]`` line.
+        DeepSeek API 返回 Server-Sent Events：每个事件是一行以 ``data:``
+        为前缀的文本，包含一个带 ``choices`` 数组的 JSON 对象。流以
+        ``data: [DONE]`` 行结束。
 
         Args:
-            messages: The conversation messages.
-            temperature: Sampling temperature (0.0 - 2.0).
-            max_tokens: Optional maximum number of tokens to generate.
-            **kwargs: Additional parameters forwarded to the API.
+            messages: 对话消息列表。
+            temperature: 采样温度（0.0 - 2.0）。
+            max_tokens: 可选，生成 token 的最大数量。
+            **kwargs: 转发给 API 的附加参数。
 
         Yields:
-            Content delta strings as they arrive from the API.
+            从 API 到达的内容增量字符串。
 
         Raises:
-            BizException: If the API key is not configured (code ``50001``)
-                or the API returns a non-200 status (code ``50003``).
+            BizException: 若 API key 未配置（code ``50001``）或 API 返回非 200
+                状态码（code ``50003``）。
         """
         self._ensure_configured()
 
@@ -181,22 +176,22 @@ class DeepSeekProvider(LLMProvider):
                     )
 
                 async for line in response.aiter_lines():
-                    # Skip blank lines and SSE comments / event markers.
+                    # 跳过空行和 SSE 注释 / 事件标记。
                     if not line or not line.startswith("data:"):
                         continue
 
-                    # Strip the "data:" prefix and surrounding whitespace.
+                    # 去掉 "data:" 前缀及两侧空白。
                     data_str = line[len("data:") :].strip()
 
-                    # The stream terminates with a [DONE] sentinel.
+                    # 流以 [DONE] 哨兵结束。
                     if data_str == "[DONE]":
                         break
 
-                    # Parse the JSON chunk and extract the content delta.
+                    # 解析 JSON 数据块并提取内容增量。
                     try:
                         chunk = json.loads(data_str)
                     except json.JSONDecodeError:
-                        # Skip malformed lines (keep-alives, etc.).
+                        # 跳过格式错误的行（keep-alive 等）。
                         continue
 
                     choices = chunk.get("choices") or []

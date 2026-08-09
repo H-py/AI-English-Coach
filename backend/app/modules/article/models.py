@@ -1,10 +1,9 @@
-"""Article ORM model and difficulty enumeration.
+"""文章 ORM 模型与难度枚举。
 
-Defines the ``articles`` table and the :class:`Difficulty` enum based on the
-CEFR (Common European Framework of Reference) proficiency scale. The model
-follows the SQLAlchemy 2.0 ``Mapped`` / ``mapped_column`` style and is
-registered on the shared :class:`~app.core.database.Base` so that Alembic
-autogenerate can discover it.
+基于 CEFR（欧洲语言共同参考框架）能力等级定义了 ``articles`` 表以及
+:class:`Difficulty` 枚举。该模型采用 SQLAlchemy 2.0 的 ``Mapped`` /
+``mapped_column`` 风格，并注册到共享的 :class:`~app.core.database.Base` 上，
+以便 Alembic 自动生成迁移时能够发现它。
 """
 
 import enum
@@ -28,10 +27,10 @@ from app.core.database import Base
 
 
 class Difficulty(enum.Enum):
-    """CEFR (Common European Framework of Reference) proficiency levels.
+    """CEFR（欧洲语言共同参考框架）能力等级。
 
-    Ranges from A1 (beginner) to C2 (mastery). Used to classify article
-    difficulty so readers can find content matching their level.
+    范围从 A1（初学者）到 C2（精通）。用于标注文章难度，
+    以便读者找到与自己水平匹配的内容。
     """
 
     a1 = "a1"
@@ -43,12 +42,11 @@ class Difficulty(enum.Enum):
 
 
 class Article(Base):
-    """A reading article available to learners.
+    """供学习者阅读的文章。
 
-    Stores the full article content alongside metadata such as title,
-    summary, difficulty level, word count, estimated reading time, cover
-    image, tags, and view statistics. The ``tags`` column uses the
-    ``JSON`` type to store a list of string tags.
+    存储文章的完整正文，以及标题、摘要、难度等级、字数、预计阅读时长、
+    封面图、标签和浏览统计等元数据。``tags`` 列使用 ``JSON`` 类型来
+    存储字符串标签列表。
     """
 
     __tablename__ = "articles"
@@ -98,5 +96,5 @@ class Article(Base):
         onupdate=func.now(),
     )
 
-    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+    def __repr__(self) -> str:  # pragma: no cover - 调试辅助
         return f"<Article id={self.id} title={self.title!r}>"

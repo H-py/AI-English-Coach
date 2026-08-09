@@ -1,8 +1,7 @@
-"""Business-logic layer for the users module.
+"""users 模块的业务逻辑层。
 
-The service sits between the HTTP routes and the repository. It owns the
-domain rules: translating "not found" into a :class:`BizException` and
-deciding which fields from an update payload are actually applied.
+该服务层位于 HTTP 路由与仓库层之间，负责领域规则：将"未找到"翻译为
+:class:`BizException`，并决定更新载荷中哪些字段会被实际应用。
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,22 +10,22 @@ from app.core.exceptions import BizException
 from app.modules.users.repository import get_user_by_id, update_user
 from app.modules.users.schemas import UserOut, UserUpdate
 
-# Business error code: the requested resource does not exist.
+# 业务错误码：请求的资源不存在。
 USER_NOT_FOUND_CODE = 90001
 
 
 async def get_user_profile(db: AsyncSession, user_id: int) -> UserOut:
-    """Return the public profile of the user with the given id.
+    """返回指定 id 用户的公开画像。
 
     Args:
-        db: The active async session.
-        user_id: The user's primary key.
+        db: 当前活跃的异步会话。
+        user_id: 用户的主键。
 
     Returns:
-        A :class:`UserOut` built from the persisted user.
+        由持久化用户构建的 :class:`UserOut`。
 
     Raises:
-        BizException: If no user exists with the given id (code ``90001``).
+        BizException: 若不存在指定 id 的用户（错误码 ``90001``）。
     """
     user = await get_user_by_id(db, user_id)
     if user is None:
@@ -37,21 +36,21 @@ async def get_user_profile(db: AsyncSession, user_id: int) -> UserOut:
 async def update_profile(
     db: AsyncSession, user_id: int, data: UserUpdate
 ) -> UserOut:
-    """Apply a partial profile update for the given user.
+    """对指定用户应用部分画像更新。
 
-    Only fields explicitly provided in ``data`` are applied (via
-    ``exclude_unset``); omitted fields are left untouched.
+    仅应用 ``data`` 中显式提供的字段（通过 ``exclude_unset``）；
+    未提供的字段保持不变。
 
     Args:
-        db: The active async session.
-        user_id: The user's primary key.
-        data: The partial update payload.
+        db: 当前活跃的异步会话。
+        user_id: 用户的主键。
+        data: 部分更新载荷。
 
     Returns:
-        A :class:`UserOut` reflecting the updated user.
+        反映更新后用户的 :class:`UserOut`。
 
     Raises:
-        BizException: If no user exists with the given id (code ``90001``).
+        BizException: 若不存在指定 id 的用户（错误码 ``90001``）。
     """
     user = await get_user_by_id(db, user_id)
     if user is None:

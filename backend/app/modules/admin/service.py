@@ -1,11 +1,9 @@
-"""Business-logic layer for the admin module.
+"""admin 模块的业务逻辑层。
 
-Provides admin-only operations for article management, user management, and
-dashboard statistics. Article CRUD reuses the existing article repository
-functions but adds admin-specific behaviour (e.g. listing unpublished
-articles, fetching detail without incrementing view count). User management
-includes self-delete protection to prevent administrators from locking
-themselves out.
+提供文章管理、用户管理和仪表盘统计等仅管理员可用的操作。文章增删改查复用
+现有的 article repository 函数，但增加了管理员专属行为（例如列出未发布
+文章、获取详情时不增加浏览次数）。用户管理包含禁止自删保护，以防止管理员
+把自己锁在系统之外。
 """
 
 from sqlalchemy import func, select
@@ -39,28 +37,28 @@ from app.modules.users.repository import (
     update_user as repo_update_user,
 )
 
-# Reused business error codes.
+# 复用的业务错误码。
 ARTICLE_NOT_FOUND_CODE = 90002
 USER_NOT_FOUND_CODE = 90001
 
-# Admin-specific error codes.
+# admin 专属错误码。
 CANNOT_DELETE_SELF_CODE = 20006
 CANNOT_DEMOTE_LAST_ADMIN_CODE = 20007
 
 
 def _calculate_word_count(content: str) -> int:
-    """Calculate the word count of a text by splitting on whitespace."""
+    """通过按空白字符拆分文本来计算单词数。"""
     return len(content.split())
 
 
 # ---------------------------------------------------------------------------
-# Article management
+# 文章管理
 # ---------------------------------------------------------------------------
 
 async def admin_list_articles(
     db: AsyncSession, params: AdminArticleQueryParams
 ) -> AdminArticleListResponse:
-    """Return a paginated, filtered list of all articles (including drafts)."""
+    """返回所有文章（含草稿）的分页、筛选列表。"""
     items, total = await repo_list_all_articles(
         db,
         search=params.search,
@@ -81,14 +79,13 @@ async def admin_list_articles(
 async def admin_get_article(
     db: AsyncSession, article_id: int
 ) -> ArticleOut:
-    """Return the full detail of an article without incrementing view count.
+    """返回文章的完整详情，且不增加浏览次数。
 
-    Unlike the public :func:`get_article_detail`, this function does not
-    bump ``view_count`` — administrators should be able to inspect articles
-    without skewing analytics.
+    与公开的 :func:`get_article_detail` 不同，此函数不会自增 ``view_count``
+    ——管理员应能在不影响分析数据的前提下审阅文章。
 
     Raises:
-        BizException: If no article exists with the given id.
+        BizException: 如果不存在指定 id 的文章。
     """
     article = await repo_get_article_by_id(db, article_id)
     if article is None:
@@ -99,7 +96,7 @@ async def admin_get_article(
 async def admin_create_article(
     db: AsyncSession, data: ArticleCreate
 ) -> ArticleOut:
-    """Create a new article with an auto-calculated word count."""
+    """创建新文章，并自动计算字数。"""
     word_count = _calculate_word_count(data.content)
     article = await repo_create_article(db, data, word_count)
     return ArticleOut.model_validate(article)
@@ -108,7 +105,7 @@ async def admin_create_article(
 async def admin_update_article(
     db: AsyncSession, article_id: int, data: ArticleUpdate
 ) -> ArticleOut:
-    """Apply a partial update to an existing article."""
+    """对已有文章应用部分更新。"""
     article = await repo_get_article_by_id(db, article_id)
     if article is None:
         raise BizException("article not found", code=ARTICLE_NOT_FOUND_CODE)
@@ -127,7 +124,7 @@ async def admin_update_article(
 
 
 async def admin_delete_article(db: AsyncSession, article_id: int) -> None:
-    """Delete an article by its id."""
+    """根据 id 删除文章。"""
     article = await repo_get_article_by_id(db, article_id)
     if article is None:
         raise BizException("article not found", code=ARTICLE_NOT_FOUND_CODE)
@@ -135,13 +132,13 @@ async def admin_delete_article(db: AsyncSession, article_id: int) -> None:
 
 
 # ---------------------------------------------------------------------------
-# User management
+# 用户管理
 # ---------------------------------------------------------------------------
 
 async def admin_list_users(
     db: AsyncSession, params: AdminUserQueryParams
 ) -> AdminUserListResponse:
-    """Return a paginated, filtered list of all users."""
+    """返回所有用户的分页、筛选列表。"""
     items, total = await repo_list_users(
         db,
         search=params.search,
@@ -159,10 +156,10 @@ async def admin_list_users(
 
 
 async def admin_get_user(db: AsyncSession, user_id: int) -> AdminUserOut:
-    """Return the full detail of a single user.
+    """返回单个用户的完整详情。
 
     Raises:
-        BizException: If no user exists with the given id.
+        BizException: 如果不存在指定 id 的用户。
     """
     user = await repo_get_user_by_id(db, user_id)
     if user is None:
@@ -173,14 +170,12 @@ async def admin_get_user(db: AsyncSession, user_id: int) -> AdminUserOut:
 async def admin_update_user(
     db: AsyncSession, user_id: int, data: AdminUserUpdate, current_user: User
 ) -> AdminUserOut:
-    """Apply a partial update to an existing user.
+    """对已有用户应用部分更新。
 
-    Prevents the current admin from demoting themselves (which could lock
-    them out if they are the only admin).
+    阻止当前管理员自我降级（若其是唯一管理员，自我降级会导致自身被锁在系统外）。
 
     Raises:
-        BizException: If the user is not found, or if the current admin
-            attempts to demote themselves.
+        BizException: 如果用户不存在，或当前管理员试图自我降级。
     """
     user = await repo_get_user_by_id(db, user_id)
     if user is None:
@@ -188,7 +183,7 @@ async def admin_update_user(
 
     update_data = data.model_dump(exclude_unset=True)
 
-    # Prevent self-demotion: an admin cannot remove their own admin role.
+    # 阻止自我降级：管理员不能移除自己的管理员角色。
     if (
         user_id == current_user.id
         and "role" in update_data
@@ -209,13 +204,12 @@ async def admin_update_user(
 async def admin_delete_user(
     db: AsyncSession, user_id: int, current_user: User
 ) -> None:
-    """Delete a user by their id.
+    """根据 id 删除用户。
 
-    Prevents self-deletion to avoid accidental lockout.
+    阻止自我删除，以免意外被锁在系统外。
 
     Raises:
-        BizException: If the user is not found, or if the current admin
-            attempts to delete their own account.
+        BizException: 如果用户不存在，或当前管理员试图删除自己的账号。
     """
     if user_id == current_user.id:
         raise BizException(
@@ -232,11 +226,11 @@ async def admin_delete_user(
 
 
 # ---------------------------------------------------------------------------
-# Dashboard
+# 仪表盘
 # ---------------------------------------------------------------------------
 
 async def admin_get_dashboard(db: AsyncSession) -> AdminDashboard:
-    """Return high-level statistics for the admin overview page."""
+    """返回管理概览页面的高层统计数据。"""
     total_users = await db.scalar(
         select(func.count()).select_from(User)
     ) or 0

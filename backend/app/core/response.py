@@ -1,12 +1,12 @@
-"""Unified API response envelope.
+"""统一的 API 响应信封。
 
-Every endpoint returns the same JSON structure::
+每个端点都返回相同的 JSON 结构::
 
     {"code": 0, "message": "success", "data": {}}
 
-``code`` equal to ``0`` indicates success; any non-zero value indicates a
-business or system error. This module provides the :class:`ResponseModel`
-Pydantic schema plus convenience helpers :func:`success` and :func:`error`.
+``code`` 为 ``0`` 表示成功；任何非零值表示业务或系统错误。本模块提供
+:class:`ResponseModel` Pydantic 模型以及便捷助手 :func:`success` 和
+:func:`error`。
 """
 
 from typing import Any, Generic, Optional, TypeVar
@@ -17,11 +17,10 @@ T = TypeVar("T")
 
 
 class ResponseModel(BaseModel, Generic[T]):
-    """Generic response envelope model.
+    """泛型响应信封模型。
 
-    The ``data`` field is parametrised so that OpenAPI docs can reflect the
-    concrete payload type of each endpoint while still keeping a single,
-    uniform shape on the wire.
+    ``data`` 字段被参数化，使 OpenAPI 文档能够反映每个端点的具体负载
+    类型，同时在线上仍保持单一、统一的响应结构。
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -32,10 +31,10 @@ class ResponseModel(BaseModel, Generic[T]):
 
 
 def success(data: Any = None, message: str = "success") -> dict:
-    """Build a success response dict (``code == 0``)."""
+    """构建成功响应字典（``code == 0``）。"""
     return {"code": 0, "message": message, "data": data}
 
 
 def error(code: int, message: str, data: Any = None) -> dict:
-    """Build an error response dict (``code != 0``)."""
+    """构建错误响应字典（``code != 0``）。"""
     return {"code": code, "message": message, "data": data}

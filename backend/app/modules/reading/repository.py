@@ -1,9 +1,9 @@
-"""Database access layer for the reading module.
+"""阅读模块的数据库访问层。
 
-All functions are async and operate on the shared :class:`AsyncSession`.
-They perform the persistence mechanics (``add`` / ``flush`` / ``refresh`` /
-``execute``) while leaving transaction commit/rollback to the ``get_db``
-dependency, which wraps each request in a single transaction.
+所有函数均为异步函数，并操作共享的 :class:`AsyncSession`。
+它们负责持久化机制（``add`` / ``flush`` / ``refresh`` / ``execute``），
+而事务的提交/回滚则交由 ``get_db`` 依赖完成，该依赖会将每个请求
+包裹在单个事务中。
 """
 
 from typing import Optional
@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.article.models import Article
 from app.modules.reading.models import (
-    AiConversation,
     MasteryLevel,
     ReadingHistory,
     SentenceCollection,
@@ -22,7 +21,7 @@ from app.modules.reading.models import (
 from app.modules.reading.schemas import SentenceCollectionCreate
 
 
-# ---- Word collection --------------------------------------------------------
+# ---- 单词收藏 ----------------------------------------------------------------
 
 
 async def get_or_create_word(
@@ -33,24 +32,22 @@ async def get_or_create_word(
     article_id: Optional[int],
     ai_explanation: Optional[str],
 ) -> WordCollection:
-    """Upsert a collected word for the user.
+    """为用户新增或更新（upsert）一个收藏的单词。
 
-    If the user has already saved ``word``, the existing row is updated
-    with the new ``context`` and — when a fresh explanation is supplied —
-    the ``ai_explanation``. The ``article_id`` is also refreshed if a new
-    one is provided. Otherwise a new :class:`WordCollection` row is
-    created.
+    如果用户已经收藏过 ``word``，则更新已有行的 ``context``，并在提供了
+    新解释时更新 ``ai_explanation``。若提供了新的 ``article_id``，也会
+    一并刷新。否则创建一条新的 :class:`WordCollection` 行。
 
     Args:
-        db: The active async session.
-        user_id: The collecting user's id.
-        word: The word being saved.
-        context: The sentence in which the word appeared.
-        article_id: The article the word came from, if any.
-        ai_explanation: A pre-generated AI explanation, if any.
+        db: 当前活跃的异步会话。
+        user_id: 执行收藏操作的用户 id。
+        word: 被收藏的单词。
+        context: 该单词出现的句子。
+        article_id: 单词所属的文章，可选。
+        ai_explanation: 预先生成的 AI 解释，可选。
 
     Returns:
-        The created or updated :class:`WordCollection`.
+        新建或更新后的 :class:`WordCollection`。
     """
     result = await db.execute(
         select(WordCollection).where(
@@ -91,23 +88,22 @@ async def list_words(
     mastery_level: Optional[MasteryLevel] = None,
     search: Optional[str] = None,
 ) -> tuple[list[WordCollection], int]:
-    """Return a paginated list of a user's collected words.
+    """返回用户收藏单词的分页列表。
 
-    Results are ordered by ``created_at`` descending (newest first).
-    When ``mastery_level`` is supplied, only words at that level are
-    returned. When ``search`` is supplied, only words containing the
-    search string (case-insensitive) are returned.
+    结果按 ``created_at`` 倒序排列（最新在前）。当提供 ``mastery_level``
+    时，仅返回该掌握程度的单词。当提供 ``search`` 时，仅返回包含该
+    搜索字符串的单词（不区分大小写）。
 
     Args:
-        db: The active async session.
-        user_id: The owning user's id.
-        page: The 1-based page number.
-        page_size: The number of items per page.
-        mastery_level: Optional filter by mastery level.
-        search: Optional case-insensitive word search.
+        db: 当前活跃的异步会话。
+        user_id: 所属用户的 id。
+        page: 从 1 开始的页码。
+        page_size: 每页条数。
+        mastery_level: 可选，按掌握程度过滤。
+        search: 可选，不区分大小写的单词搜索。
 
     Returns:
-        A tuple of ``(items, total)``.
+        ``(items, total)`` 元组。
     """
     conditions = [WordCollection.user_id == user_id]
     if mastery_level is not None:
@@ -137,15 +133,15 @@ async def list_words(
 async def get_word(
     db: AsyncSession, user_id: int, word_id: int
 ) -> Optional[WordCollection]:
-    """Fetch a single collected word, scoped to the owning user.
+    """获取单个收藏单词，限定在所属用户范围内。
 
     Args:
-        db: The active async session.
-        user_id: The owning user's id.
-        word_id: The word collection's primary key.
+        db: 当前活跃的异步会话。
+        user_id: 所属用户的 id。
+        word_id: 单词收藏记录的主键。
 
     Returns:
-        The :class:`WordCollection`, or ``None`` if not found.
+        :class:`WordCollection`，未找到时返回 ``None``。
     """
     result = await db.execute(
         select(WordCollection).where(
@@ -159,15 +155,15 @@ async def get_word(
 async def update_word(
     db: AsyncSession, word: WordCollection, data: dict
 ) -> WordCollection:
-    """Apply a set of field updates to an existing collected word.
+    """对已有收藏单词应用一组字段更新。
 
     Args:
-        db: The active async session.
-        word: The :class:`WordCollection` instance to update.
-        data: A mapping of attribute name to new value.
+        db: 当前活跃的异步会话。
+        word: 待更新的 :class:`WordCollection` 实例。
+        data: 属性名到新值的映射。
 
     Returns:
-        The updated :class:`WordCollection` with refreshed attributes.
+        更新后并刷新属性的 :class:`WordCollection`。
     """
     for key, value in data.items():
         setattr(word, key, value)
@@ -177,36 +173,35 @@ async def update_word(
 
 
 async def delete_word(db: AsyncSession, word: WordCollection) -> None:
-    """Delete a collected word from the database.
+    """从数据库中删除一个收藏单词。
 
     Args:
-        db: The active async session.
-        word: The :class:`WordCollection` instance to delete.
+        db: 当前活跃的异步会话。
+        word: 待删除的 :class:`WordCollection` 实例。
     """
     await db.delete(word)
     await db.flush()
 
 
-# ---- Sentence collection ----------------------------------------------------
+# ---- 句子收藏 ----------------------------------------------------------------
 
 
 async def get_or_create_sentence(
     db: AsyncSession, user_id: int, data: SentenceCollectionCreate
 ) -> SentenceCollection:
-    """Upsert a collected sentence for the user.
+    """为用户新增或更新（upsert）一个收藏的句子。
 
-    If the user has already saved the exact same sentence text, the
-    existing row is updated with the new ``note`` (when supplied) and
-    ``article_id``. Otherwise a new :class:`SentenceCollection` row is
-    created.
+    如果用户已经收藏过完全相同的句子文本，则更新已有行的 ``note``
+    （当提供时）和 ``article_id``。否则创建一条新的
+    :class:`SentenceCollection` 行。
 
     Args:
-        db: The active async session.
-        user_id: The collecting user's id.
-        data: The validated create payload.
+        db: 当前活跃的异步会话。
+        user_id: 执行收藏操作的用户 id。
+        data: 已校验的创建载荷。
 
     Returns:
-        The created or updated :class:`SentenceCollection`.
+        新建或更新后的 :class:`SentenceCollection`。
     """
     result = await db.execute(
         select(SentenceCollection).where(
@@ -244,21 +239,20 @@ async def list_sentences(
     page_size: int,
     search: Optional[str] = None,
 ) -> tuple[list[SentenceCollection], int]:
-    """Return a paginated list of a user's collected sentences.
+    """返回用户收藏句子的分页列表。
 
-    Results are ordered by ``created_at`` descending (newest first).
-    When ``search`` is supplied, only sentences containing the search
-    string (case-insensitive) are returned.
+    结果按 ``created_at`` 倒序排列（最新在前）。当提供 ``search`` 时，
+    仅返回包含该搜索字符串的句子（不区分大小写）。
 
     Args:
-        db: The active async session.
-        user_id: The owning user's id.
-        page: The 1-based page number.
-        page_size: The number of items per page.
-        search: Optional case-insensitive sentence search.
+        db: 当前活跃的异步会话。
+        user_id: 所属用户的 id。
+        page: 从 1 开始的页码。
+        page_size: 每页条数。
+        search: 可选，不区分大小写的句子搜索。
 
     Returns:
-        A tuple of ``(items, total)``.
+        ``(items, total)`` 元组。
     """
     conditions = [SentenceCollection.user_id == user_id]
     if search:
@@ -286,15 +280,15 @@ async def list_sentences(
 async def get_sentence(
     db: AsyncSession, user_id: int, sentence_id: int
 ) -> Optional[SentenceCollection]:
-    """Fetch a single collected sentence, scoped to the owning user.
+    """获取单个收藏句子，限定在所属用户范围内。
 
     Args:
-        db: The active async session.
-        user_id: The owning user's id.
-        sentence_id: The sentence collection's primary key.
+        db: 当前活跃的异步会话。
+        user_id: 所属用户的 id。
+        sentence_id: 句子收藏记录的主键。
 
     Returns:
-        The :class:`SentenceCollection`, or ``None`` if not found.
+        :class:`SentenceCollection`，未找到时返回 ``None``。
     """
     result = await db.execute(
         select(SentenceCollection).where(
@@ -308,15 +302,15 @@ async def get_sentence(
 async def update_sentence(
     db: AsyncSession, sentence: SentenceCollection, data: dict
 ) -> SentenceCollection:
-    """Apply field updates to an existing collected sentence.
+    """对已有收藏句子应用字段更新。
 
     Args:
-        db: The active async session.
-        sentence: The :class:`SentenceCollection` instance to update.
-        data: A mapping of attribute name to new value.
+        db: 当前活跃的异步会话。
+        sentence: 待更新的 :class:`SentenceCollection` 实例。
+        data: 属性名到新值的映射。
 
     Returns:
-        The updated :class:`SentenceCollection` with refreshed attributes.
+        更新后并刷新属性的 :class:`SentenceCollection`。
     """
     for key, value in data.items():
         setattr(sentence, key, value)
@@ -328,36 +322,35 @@ async def update_sentence(
 async def delete_sentence(
     db: AsyncSession, sentence: SentenceCollection
 ) -> None:
-    """Delete a collected sentence from the database.
+    """从数据库中删除一个收藏句子。
 
     Args:
-        db: The active async session.
-        sentence: The :class:`SentenceCollection` instance to delete.
+        db: 当前活跃的异步会话。
+        sentence: 待删除的 :class:`SentenceCollection` 实例。
     """
     await db.delete(sentence)
     await db.flush()
 
 
-# ---- Reading history --------------------------------------------------------
+# ---- 阅读历史 ----------------------------------------------------------------
 
 
 async def get_or_create_history(
     db: AsyncSession, user_id: int, article_id: int
 ) -> ReadingHistory:
-    """Upsert a reading-history entry for the user.
+    """为用户新增或更新（upsert）一条阅读历史记录。
 
-    If the user already has a history row for ``article_id``, increment
-    ``read_count`` and reset ``started_at`` to now (new session) while
-    clearing ``ended_at`` and ``duration_seconds``. Otherwise create a
-    new row.
+    如果用户已存在针对 ``article_id`` 的历史记录，则将 ``read_count``
+    加 1，并把 ``started_at`` 重置为当前时间（开启新会话），同时清空
+    ``ended_at`` 和 ``duration_seconds``。否则创建一条新记录。
 
     Args:
-        db: The active async session.
-        user_id: The reading user's id.
-        article_id: The article being read.
+        db: 当前活跃的异步会话。
+        user_id: 执行阅读操作的用户 id。
+        article_id: 正在阅读的文章。
 
     Returns:
-        The created or updated :class:`ReadingHistory`.
+        新建或更新后的 :class:`ReadingHistory`。
     """
     result = await db.execute(
         select(ReadingHistory).where(
@@ -386,18 +379,17 @@ async def get_or_create_history(
 async def update_history(
     db: AsyncSession, history: ReadingHistory, data: dict
 ) -> ReadingHistory:
-    """Apply field updates to an existing reading-history entry.
+    """对已有阅读历史记录应用字段更新。
 
-    Typically used to record ``ended_at`` and ``duration_seconds`` when a
-    reading session ends.
+    通常用于在阅读会话结束时记录 ``ended_at`` 和 ``duration_seconds``。
 
     Args:
-        db: The active async session.
-        history: The :class:`ReadingHistory` instance to update.
-        data: A mapping of attribute name to new value.
+        db: 当前活跃的异步会话。
+        history: 待更新的 :class:`ReadingHistory` 实例。
+        data: 属性名到新值的映射。
 
     Returns:
-        The updated :class:`ReadingHistory` with refreshed attributes.
+        更新后并刷新属性的 :class:`ReadingHistory`。
     """
     for key, value in data.items():
         setattr(history, key, value)
@@ -409,15 +401,15 @@ async def update_history(
 async def get_history(
     db: AsyncSession, user_id: int, history_id: int
 ) -> Optional[ReadingHistory]:
-    """Fetch a single reading-history entry, scoped to the owning user.
+    """获取单条阅读历史记录，限定在所属用户范围内。
 
     Args:
-        db: The active async session.
-        user_id: The owning user's id.
-        history_id: The history entry's primary key.
+        db: 当前活跃的异步会话。
+        user_id: 所属用户的 id。
+        history_id: 历史记录的主键。
 
     Returns:
-        The :class:`ReadingHistory`, or ``None`` if not found.
+        :class:`ReadingHistory`，未找到时返回 ``None``。
     """
     result = await db.execute(
         select(ReadingHistory).where(
@@ -431,19 +423,19 @@ async def get_history(
 async def list_histories(
     db: AsyncSession, user_id: int, page: int, page_size: int
 ) -> tuple[list[ReadingHistory], int]:
-    """Return a paginated list of a user's reading history.
+    """返回用户阅读历史的分页列表。
 
-    Results are ordered by ``started_at`` descending (most recently read
-    first), so re-reading an article bubbles it to the top.
+    结果按 ``started_at`` 倒序排列（最近阅读的在前），因此重新阅读
+    某篇文章会将其置顶。
 
     Args:
-        db: The active async session.
-        user_id: The owning user's id.
-        page: The 1-based page number.
-        page_size: The number of items per page.
+        db: 当前活跃的异步会话。
+        user_id: 所属用户的 id。
+        page: 从 1 开始的页码。
+        page_size: 每页条数。
 
     Returns:
-        A tuple of ``(items, total)``.
+        ``(items, total)`` 元组。
     """
     count_stmt = (
         select(func.count())
@@ -467,22 +459,21 @@ async def list_histories(
 async def list_histories_with_article(
     db: AsyncSession, user_id: int, page: int, page_size: int
 ) -> tuple[list[tuple[ReadingHistory, Optional[str]]], int]:
-    """Return a paginated list of reading history with article titles.
+    """返回带有文章标题的阅读历史分页列表。
 
-    Joins ``reading_histories`` with ``articles`` to include the article
-    title for each history entry. Results are ordered by ``started_at``
-    descending (most recently read first), so re-reading an article
-    bubbles it to the top.
+    将 ``reading_histories`` 与 ``articles`` 连接，为每条历史记录附上
+    文章标题。结果按 ``started_at`` 倒序排列（最近阅读的在前），因此
+    重新阅读某篇文章会将其置顶。
 
     Args:
-        db: The active async session.
-        user_id: The owning user's id.
-        page: The 1-based page number.
-        page_size: The number of items per page.
+        db: 当前活跃的异步会话。
+        user_id: 所属用户的 id。
+        page: 从 1 开始的页码。
+        page_size: 每页条数。
 
     Returns:
-        A tuple of ``(items, total)`` where each item is a
-        ``(ReadingHistory, article_title)`` tuple.
+        ``(items, total)`` 元组，其中每个 item 是一个
+        ``(ReadingHistory, article_title)`` 元组。
     """
     count_stmt = (
         select(func.count())
@@ -503,121 +494,3 @@ async def list_histories_with_article(
     result = await db.execute(data_stmt)
     items = [(row[0], row[1]) for row in result.all()]
     return items, total
-
-
-# ---- AI conversation --------------------------------------------------------
-
-
-async def save_message(
-    db: AsyncSession,
-    user_id: int,
-    article_id: int,
-    role: str,
-    content: str,
-) -> AiConversation:
-    """Persist a single chat message (user or assistant).
-
-    Args:
-        db: The active async session.
-        user_id: The chatting user's id.
-        article_id: The article the conversation is about.
-        role: The message role — ``"user"`` or ``"assistant"``.
-        content: The message text.
-
-    Returns:
-        The newly created :class:`AiConversation`.
-    """
-    message = AiConversation(
-        user_id=user_id,
-        article_id=article_id,
-        role=role,
-        content=content,
-    )
-    db.add(message)
-    await db.flush()
-    await db.refresh(message)
-    return message
-
-
-async def get_recent_messages(
-    db: AsyncSession,
-    user_id: int,
-    article_id: int,
-    limit: int = 20,
-) -> list[AiConversation]:
-    """Return the most recent **unsummarized** chat messages for context.
-
-    Only messages with ``is_summarized=False`` are loaded — summarized
-    messages have been compressed into :class:`AiMemory` entries and are
-    loaded separately as long-term memory. Messages are fetched newest-
-    first (by ``id``) and then reversed so the returned list is in
-    chronological order, ready to be used as LLM context.
-
-    Ordering by ``id`` instead of ``created_at`` because PostgreSQL's
-    ``NOW()`` returns the same timestamp for all rows inserted within a
-    single transaction. Since user and assistant messages for one chat
-    turn are saved in the same transaction, ``created_at`` cannot
-    distinguish their insertion order.
-
-    Args:
-        db: The active async session.
-        user_id: The chatting user's id.
-        article_id: The article the conversation is about.
-        limit: The maximum number of messages to return.
-
-    Returns:
-        A chronologically ordered list of :class:`AiConversation`.
-    """
-    stmt = (
-        select(AiConversation)
-        .where(
-            AiConversation.user_id == user_id,
-            AiConversation.article_id == article_id,
-            AiConversation.is_summarized.is_(False),
-        )
-        .order_by(AiConversation.id.desc())
-        .limit(limit)
-    )
-    result = await db.execute(stmt)
-    return list(reversed(result.scalars().all()))
-
-
-async def list_conversations(
-    db: AsyncSession,
-    user_id: int,
-    article_id: int,
-    limit: int = 50,
-) -> list[AiConversation]:
-    """Return conversation messages for a user-article pair.
-
-    Unlike :func:`get_recent_messages` (which is tuned for LLM context
-    windows at 10 messages), this function returns up to ``limit``
-    messages for the frontend to restore a full chat session after a
-    page refresh.
-
-    Ordering by ``id`` instead of ``created_at`` because PostgreSQL's
-    ``NOW()`` returns the same timestamp for all rows inserted within a
-    single transaction. Since user and assistant messages for one chat
-    turn are saved in the same transaction, ``created_at`` cannot
-    distinguish their insertion order.
-
-    Args:
-        db: The active async session.
-        user_id: The chatting user's id.
-        article_id: The article the conversation is about.
-        limit: The maximum number of messages to return (default 50).
-
-    Returns:
-        A chronologically ordered list of :class:`AiConversation`.
-    """
-    stmt = (
-        select(AiConversation)
-        .where(
-            AiConversation.user_id == user_id,
-            AiConversation.article_id == article_id,
-        )
-        .order_by(AiConversation.id.desc())
-        .limit(limit)
-    )
-    result = await db.execute(stmt)
-    return list(reversed(result.scalars().all()))

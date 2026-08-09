@@ -1,7 +1,7 @@
-"""Abstract LLM provider interface.
+"""抽象 LLM 提供方接口。
 
-All AI providers (DeepSeek, OpenAI, Claude, etc.) implement this interface.
-Business code depends only on this abstraction, never on a specific provider.
+所有 AI 提供方（DeepSeek、OpenAI、Claude 等）都实现此接口。业务代码只
+依赖此抽象，而不依赖具体的提供方。
 """
 
 from abc import ABC, abstractmethod
@@ -12,7 +12,7 @@ from typing import Any, Optional
 
 @dataclass
 class ChatMessage:
-    """A single message in a chat conversation."""
+    """聊天对话中的单条消息。"""
 
     role: str  # "system" | "user" | "assistant"
     content: str
@@ -20,7 +20,7 @@ class ChatMessage:
 
 @dataclass
 class LLMResponse:
-    """Non-streaming LLM response."""
+    """非流式 LLM 响应。"""
 
     content: str
     model: str
@@ -28,11 +28,10 @@ class LLMResponse:
 
 
 class LLMProvider(ABC):
-    """Abstract base class for LLM providers.
+    """LLM 提供方的抽象基类。
 
-    Subclasses implement the actual API calls to a specific LLM service.
-    Business modules interact only with this interface, allowing providers
-    to be swapped without touching business logic.
+    子类实现对特定 LLM 服务的实际 API 调用。业务模块只与此接口交互，
+    使得提供方可以在不影响业务逻辑的情况下被替换。
     """
 
     @abstractmethod
@@ -43,7 +42,7 @@ class LLMProvider(ABC):
         max_tokens: Optional[int] = None,
         **kwargs: Any,
     ) -> LLMResponse:
-        """Send a chat request and return the complete response."""
+        """发送聊天请求并返回完整响应。"""
         ...
 
     @abstractmethod
@@ -54,6 +53,6 @@ class LLMProvider(ABC):
         max_tokens: Optional[int] = None,
         **kwargs: Any,
     ) -> AsyncGenerator[str, None]:
-        """Send a chat request and yield response chunks (SSE streaming)."""
+        """发送聊天请求并产出响应分块（SSE 流式）。"""
         ...
-        yield ""  # placeholder for type checking
+        yield ""  # 用于类型检查的占位符

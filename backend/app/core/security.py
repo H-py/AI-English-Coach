@@ -1,8 +1,7 @@
-"""Security utilities: password hashing and JWT helpers.
+"""安全工具：密码哈希与 JWT 助手。
 
-Password hashing uses passlib with the bcrypt scheme. JWT helpers create and
-verify tokens for authentication. Together they form the stable security
-interface that the auth/users modules build on.
+密码哈希使用 passlib 的 bcrypt 方案。JWT 助手负责创建和验证用于认证的
+令牌。二者共同构成了 auth/users 模块所依赖的稳定安全接口。
 """
 
 from datetime import datetime, timedelta, timezone
@@ -14,7 +13,7 @@ from passlib.context import CryptContext
 from app.core.config import settings
 from app.core.exceptions import BizException, CODE_AUTH_ERROR
 
-# ---- Password hashing ----
+# ---- 密码哈希 ----
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ALGORITHM = settings.JWT_ALGORITHM
@@ -22,12 +21,12 @@ SECRET_KEY = settings.JWT_SECRET_KEY
 
 
 def hash_password(password: str) -> str:
-    """Hash a plain-text password using bcrypt."""
+    """使用 bcrypt 对明文密码进行哈希。"""
     return _pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a plain-text password against a bcrypt hash."""
+    """校验明文密码与 bcrypt 哈希是否匹配。"""
     return _pwd_context.verify(plain_password, hashed_password)
 
 
@@ -37,16 +36,16 @@ def _create_token(
     token_type: str,
     extra_claims: Optional[dict[str, Any]] = None,
 ) -> str:
-    """Build and encode a JWT for ``subject``.
+    """为 ``subject`` 构建并编码 JWT。
 
     Args:
-        subject: The principal identifier (typically a user id).
-        expires_delta: How long the token remains valid.
-        token_type: ``"access"`` or ``"refresh"`` (stored in the ``type`` claim).
-        extra_claims: Additional claims merged into the payload.
+        subject: 主体标识（通常是用户 id）。
+        expires_delta: 令牌的有效时长。
+        token_type: ``"access"`` 或 ``"refresh"``（存入 ``type`` 声明中）。
+        extra_claims: 合并到负载中的额外声明。
 
     Returns:
-        The encoded JWT string.
+        编码后的 JWT 字符串。
     """
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
@@ -63,7 +62,7 @@ def _create_token(
 def create_access_token(
     subject: str | int, extra_claims: Optional[dict[str, Any]] = None
 ) -> str:
-    """Create a short-lived access token."""
+    """创建一个短期访问令牌。"""
     return _create_token(
         subject,
         timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
@@ -75,7 +74,7 @@ def create_access_token(
 def create_refresh_token(
     subject: str | int, extra_claims: Optional[dict[str, Any]] = None
 ) -> str:
-    """Create a long-lived refresh token."""
+    """创建一个长期刷新令牌。"""
     return _create_token(
         subject,
         timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
@@ -85,19 +84,18 @@ def create_refresh_token(
 
 
 def verify_token(token: str, expected_type: Optional[str] = None) -> dict[str, Any]:
-    """Decode and validate a JWT.
+    """解码并校验 JWT。
 
     Args:
-        token: The encoded JWT string.
-        expected_type: If provided, the ``type`` claim must match (e.g.
-            ``"access"`` or ``"refresh"``).
+        token: 编码后的 JWT 字符串。
+        expected_type: 若提供，则 ``type`` 声明必须与之匹配（例如
+            ``"access"`` 或 ``"refresh"``）。
 
     Returns:
-        The decoded payload as a dict.
+        解码后的负载字典。
 
     Raises:
-        BizException: If the token is expired, malformed, or the type does not
-            match expectations.
+        BizException: 当令牌已过期、格式错误，或类型与预期不符时抛出。
     """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])

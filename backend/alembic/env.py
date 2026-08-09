@@ -25,6 +25,7 @@ from app.core.database import Base
 import app.modules.users.models  # noqa: F401
 import app.modules.article.models  # noqa: F401
 import app.modules.reading.models  # noqa: F401
+import app.modules.ai.models  # noqa: F401
 
 config = context.config
 

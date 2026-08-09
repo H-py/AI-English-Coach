@@ -1,7 +1,6 @@
-"""Provider factory.
+"""提供方工厂。
 
-Returns the configured LLM provider instance. New providers are registered
-here without touching business code.
+返回已配置的 LLM 提供方实例。新的提供方在此处注册，无需改动业务代码。
 """
 
 from functools import lru_cache
@@ -13,17 +12,16 @@ from app.core.config import settings
 
 @lru_cache
 def get_llm_provider() -> LLMProvider:
-    """Return the configured LLM provider singleton.
+    """返回已配置的 LLM 提供方单例。
 
-    The provider is selected based on ``settings.AI_DEFAULT_PROVIDER``.
-    The result is cached with :func:`lru_cache` so that the same provider
-    instance is reused across the application lifetime.
+    提供方依据 ``settings.AI_DEFAULT_PROVIDER`` 进行选择。结果通过
+    :func:`lru_cache` 缓存，使同一个提供方实例在应用整个生命周期中被复用。
 
     Returns:
-        The :class:`LLMProvider` implementation for the configured provider.
+        与已配置提供方对应的 :class:`LLMProvider` 实现。
 
     Raises:
-        ValueError: If the configured provider name is not recognised.
+        ValueError: 若配置的提供方名称无法识别。
     """
     if settings.AI_DEFAULT_PROVIDER == "deepseek":
         return DeepSeekProvider()
