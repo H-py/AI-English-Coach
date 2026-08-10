@@ -429,7 +429,78 @@ CREATE TABLE IF NOT EXISTS reading_quizzes (
 CREATE INDEX IF NOT EXISTS ix_reading_quizzes_user_id ON reading_quizzes (user_id);
 
 -- ------------------------------------------------------------
--- 17. 验证查询
+-- 17. agent_conversations 表（Agent 多轮对话容器）
+-- ------------------------------------------------------------
+-- 对应 backend/app/agents/modules/models.py 中的 AgentConversation 模型
+-- 一个对话包含多条 agent_sessions（Q&A 对），用户点击"新对话"
+-- 时创建新的 conversation，后续消息都属于同一 conversation。
+CREATE TABLE IF NOT EXISTS agent_conversations (
+    id              BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id         BIGINT       NOT NULL REFERENCES users(id),
+    title           VARCHAR(200) NOT NULL DEFAULT '新对话',
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- 索引
+CREATE INDEX IF NOT EXISTS ix_agent_conversations_user_id ON agent_conversations (user_id);
+
+-- updated_at 触发器
+DROP TRIGGER IF EXISTS trg_agent_conversations_updated_at ON agent_conversations;
+CREATE TRIGGER trg_agent_conversations_updated_at
+    BEFORE UPDATE ON agent_conversations
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at();
+
+-- ------------------------------------------------------------
+-- 18. agent_sessions 表（Agent 执行会话）
+-- ------------------------------------------------------------
+-- 对应 backend/app/agents/modules/models.py 中的 AgentSession 模型
+-- 每当用户向 Agent 发送一条消息时创建一条会话记录，记录用户输入、
+-- Agent 最终回答、总步数和执行状态（completed/failed/max_iterations）。
+-- conversation_id 将会话关联到所属的多轮对话（可为 NULL，兼容旧数据）。
+CREATE TABLE IF NOT EXISTS agent_sessions (
+    id              BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id         BIGINT       NOT NULL REFERENCES users(id),
+    article_id      BIGINT       REFERENCES articles(id),
+    history_id      BIGINT       REFERENCES reading_histories(id),
+    conversation_id BIGINT       REFERENCES agent_conversations(id),
+    agent_type      VARCHAR(50)  NOT NULL,
+    user_message    TEXT         NOT NULL,
+    final_answer    TEXT,
+    total_steps     INTEGER      NOT NULL DEFAULT 0,
+    status          VARCHAR(20)  NOT NULL DEFAULT 'completed',
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- 索引
+CREATE INDEX IF NOT EXISTS ix_agent_sessions_user_id         ON agent_sessions (user_id);
+CREATE INDEX IF NOT EXISTS ix_agent_sessions_conversation_id ON agent_sessions (conversation_id);
+
+-- ------------------------------------------------------------
+-- 19. agent_steps 表（Agent 执行步骤记录）
+-- ------------------------------------------------------------
+-- 对应 backend/app/agents/modules/models.py 中的 AgentStepRecord 模型
+-- 每个会话包含多个步骤记录，按 step_order 排列。步骤类型包括
+-- thinking（思考）、tool_call（工具调用）和 tool_result（工具结果）。
+-- tool_arguments 和 tool_result 以 JSON 格式存储，便于后续分析和回放。
+CREATE TABLE IF NOT EXISTS agent_steps (
+    id              BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    session_id      BIGINT       NOT NULL REFERENCES agent_sessions(id),
+    step_order      INTEGER      NOT NULL,
+    step_type       VARCHAR(20)  NOT NULL,
+    content         TEXT,
+    tool_name       VARCHAR(100),
+    tool_arguments  JSON,
+    tool_result     JSON,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- 索引
+CREATE INDEX IF NOT EXISTS ix_agent_steps_session_id ON agent_steps (session_id);
+
+-- ------------------------------------------------------------
+-- 20. 验证查询
 -- ------------------------------------------------------------
 -- 执行后可运行以下语句确认表和数据：
 --   SELECT id, email, username, english_level FROM users;
@@ -442,3 +513,6 @@ CREATE INDEX IF NOT EXISTS ix_reading_quizzes_user_id ON reading_quizzes (user_i
 --   SELECT id, user_id, activity_type FROM ai_activities;
 --   SELECT id, history_id, LEFT(content, 50) FROM reading_summaries;
 --   SELECT id, history_id, score, total FROM reading_quizzes;
+--   SELECT id, user_id, title FROM agent_conversations;
+--   SELECT id, conversation_id, agent_type, status, total_steps FROM agent_sessions;
+--   SELECT id, session_id, step_order, step_type, tool_name FROM agent_steps;

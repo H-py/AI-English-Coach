@@ -18,6 +18,7 @@
   },
   "nav": {
     "home": "首页",
+    "smartLearning": "智能学习",
     "articles": "文章库",
     "reading": "阅读",
     "vocabulary": "生词本",
@@ -218,7 +219,28 @@
     "wrongAnswer": "回答错误",
     "correctIs": "正确答案：{answer}",
     "submitQuiz": "提交答案",
-    "retryQuiz": "再次练习"
+    "retryQuiz": "再次练习",
+    "agent": "智能体"
+  },
+  "agent": {
+    "thinking": "思考",
+    "callingTool": "调用工具",
+    "toolResult": "工具结果",
+    "sendToAgent": "发送",
+    "agentPlaceholder": "问我任何关于英语学习的问题...",
+    "thinkingLabel": "思考中",
+    "newChat": "新对话",
+    "greeting": "有什么可以帮助你的？",
+    "subtitle": "你的 AI 英语学习教练，可以查看你的学习数据、制定计划、解答疑问",
+    "historyTitle": "对话历史",
+    "emptyHistory": "还没有对话记录",
+    "deleteSession": "删除",
+    "deleteConfirm": "确定删除这段对话吗？",
+    "sessionDeleted": "对话已删除",
+    "loadSession": "查看对话",
+    "thinkingProcess": "思考过程",
+    "collapseThinking": "收起",
+    "expandThinking": "展开"
   },
   "admin": {
     "title": "管理后台",

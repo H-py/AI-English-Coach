@@ -15,6 +15,7 @@ interface NavItem {
 // Lucide 风格的极简线性图标 path（stroke-based）
 const icons: Record<string, string> = {
   home: 'M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
+  smartLearning: 'M12 3l2 7 7 2-7 2-2 7-2-7-7-2 7-2 2-7z',
   reading: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z M4 19.5A2.5 2.5 0 0 0 6.5 22H20',
   vocabulary: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z M8 7h8 M8 11h6',
   sentences: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
@@ -29,6 +30,7 @@ const { t } = useI18n()
 
 const navItems = computed<NavItem[]>(() => [
   { name: 'home', to: '/', icon: 'home' },
+  { name: 'smartLearning', to: '/smart-learning', icon: 'smartLearning' },
   { name: 'articles', to: '/articles', icon: 'reading' },
   { name: 'vocabulary', to: '/vocabulary', icon: 'vocabulary' },
   { name: 'sentences', to: '/sentences', icon: 'sentences' },

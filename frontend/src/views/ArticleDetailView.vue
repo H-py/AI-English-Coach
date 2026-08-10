@@ -139,6 +139,43 @@ function handleSelection(): void {
   }
 }
 
+// ---- selectionchange：跨平台选区检测（移动端主力方案） ----
+
+/** selectionchange 防抖计时器 */
+let selectionTimer: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * document 级 selectionchange 事件处理。
+ *
+ * 移动端用户拖拽选区手柄时，touchend 不会在内容区 div 上触发，
+ * 但 selectionchange 会在文档级持续触发。使用 300ms 防抖等待选区
+ * 稳定后再检测，避免拖拽过程中频繁触发。空选区立即清除，不等待。
+ *
+ * 桌面端仍由 @mouseup 提供即时响应，此处作为兜底。
+ */
+function handleSelectionChange(): void {
+  const selection = window.getSelection()
+  const text = selection?.toString().trim() ?? ''
+
+  // 空选区：立即清除，不等待防抖
+  if (!text) {
+    if (selectionTimer) {
+      clearTimeout(selectionTimer)
+      selectionTimer = null
+    }
+    selectedText.value = ''
+    selectedContext.value = ''
+    return
+  }
+
+  // 非空选区：防抖等待选区稳定后交给 handleSelection 检测
+  if (selectionTimer) clearTimeout(selectionTimer)
+  selectionTimer = setTimeout(() => {
+    handleSelection()
+    selectionTimer = null
+  }, 300)
+}
+
 // ============================================================
 //  阅读历史
 // ============================================================
@@ -153,6 +190,9 @@ const startTime = ref<number>(0)
 // ============================================================
 
 onMounted(async () => {
+  // 注册文档级选区变化监听（移动端选区检测主力方案）
+  document.addEventListener('selectionchange', handleSelectionChange)
+
   const id = Number(route.params.id)
   if (Number.isNaN(id)) return
 
@@ -171,6 +211,10 @@ onMounted(async () => {
 })
 
 onUnmounted(async () => {
+  // 移除选区变化监听
+  document.removeEventListener('selectionchange', handleSelectionChange)
+  if (selectionTimer) clearTimeout(selectionTimer)
+
   // 上报阅读时长（best-effort，不阻塞卸载）
   if (historyId.value !== null && startTime.value > 0) {
     const duration = Math.floor((Date.now() - startTime.value) / 1000)

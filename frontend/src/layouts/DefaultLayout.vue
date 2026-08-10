@@ -1,11 +1,16 @@
 <script setup lang="ts">
+import { useRoute } from 'vue-router'
 import AppSidebar from './components/AppSidebar.vue'
 import AppHeader from './components/AppHeader.vue'
 
 /**
  * 默认布局：侧边栏 + 顶栏 + 内容区。
- * 内容区限制最大宽度并居中，在宽屏下充分利用空间。
+ *
+ * 常规页面在内容区限制最大宽度并居中；当路由 meta.fullHeight 为 true 时
+ * （如智能学习页面），内容区占满可用空间，不施加 max-width 和 padding，
+ * 以支持全屏交互式界面。
  */
+const route = useRoute()
 </script>
 
 <template>
@@ -18,7 +23,11 @@ import AppHeader from './components/AppHeader.vue'
       <AppHeader />
 
       <main class="flex-1 overflow-y-auto">
-        <div class="mx-auto w-full max-w-7xl px-6 py-8 sm:px-8 lg:px-10">
+        <!-- 全屏页面：不加 max-width 和 padding -->
+        <RouterView v-if="route.meta.fullHeight" />
+
+        <!-- 常规页面：居中限宽 -->
+        <div v-else class="mx-auto w-full max-w-7xl px-6 py-8 sm:px-8 lg:px-10">
           <RouterView />
         </div>
       </main>

@@ -512,7 +512,7 @@ function getExplanation(questionId: number): string {
       </template>
 
       <!-- ======================== 总结模式 ======================== -->
-      <template v-else>
+      <template v-else-if="activeTab === 'summary'">
         <!-- 无 historyId 时提示 -->
         <div v-if="!historyId" class="ai-panel__empty">
           <p class="ai-panel__hint">{{ t('reading.summaryNoHistory') }}</p>
@@ -1241,5 +1241,12 @@ function getExplanation(questionId: number): string {
 
 :global(html.dark) .quiz-explanation-text {
   color: #86868b;
+}
+
+/* ---- Agent 暗色模式 ---- */
+:global(html.dark) .ai-panel__error {
+  background: rgba(255, 69, 58, 0.12);
+  border-left-color: #ff453a;
+  color: #ff453a;
 }
 </style>

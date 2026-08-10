@@ -26,6 +26,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Home' }
       },
       {
+        path: 'smart-learning',
+        name: 'smart-learning',
+        component: () => import('@/views/SmartLearningView.vue'),
+        meta: { title: 'Smart Learning', fullHeight: true }
+      },
+      {
         path: 'articles',
         name: 'articles',
         component: () => import('@/views/ArticleListView.vue'),

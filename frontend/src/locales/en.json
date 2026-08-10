@@ -18,6 +18,7 @@
   },
   "nav": {
     "home": "Home",
+    "smartLearning": "Smart Learning",
     "articles": "Articles",
     "reading": "Reading",
     "vocabulary": "Vocabulary",
@@ -218,7 +219,28 @@
     "wrongAnswer": "Incorrect",
     "correctIs": "Correct answer: {answer}",
     "submitQuiz": "Submit Answers",
-    "retryQuiz": "Try Again"
+    "retryQuiz": "Try Again",
+    "agent": "Agent"
+  },
+  "agent": {
+    "thinking": "Thinking",
+    "callingTool": "Calling Tool",
+    "toolResult": "Tool Result",
+    "sendToAgent": "Send",
+    "agentPlaceholder": "Ask me anything about English learning...",
+    "thinkingLabel": "Thinking",
+    "newChat": "New Chat",
+    "greeting": "How can I help you?",
+    "subtitle": "Your AI English learning coach — review your data, make plans, answer questions",
+    "historyTitle": "Chat History",
+    "emptyHistory": "No conversations yet",
+    "deleteSession": "Delete",
+    "deleteConfirm": "Delete this conversation?",
+    "sessionDeleted": "Conversation deleted",
+    "loadSession": "View Conversation",
+    "thinkingProcess": "Thinking Process",
+    "collapseThinking": "Collapse",
+    "expandThinking": "Expand"
   },
   "admin": {
     "title": "Admin Panel",
