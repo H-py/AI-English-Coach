@@ -165,7 +165,7 @@ async function loadConversation(conversationId: number): Promise<void> {
         content: session.final_answer || '',
         thinkingSteps: steps,
         isStreaming: false,
-        showThinking: steps.length > 0
+        showThinking: false
       })
     }
   } catch {
@@ -210,7 +210,7 @@ async function handleSend(): Promise<void> {
     content: '',
     thinkingSteps: [],
     isStreaming: true,
-    showThinking: true
+    showThinking: false
   })
 
   scrollToBottom()

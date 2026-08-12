@@ -1,12 +1,13 @@
 """阅读教练 Agent —— 第一个具体的 Agent 实现。
 
 继承自 :class:`~app.agents.base.BaseAgent`，使用 ReAct 推理模式。
-集成了词汇、阅读、画像和记忆四类共 8 个工具，使 Agent 能够全面了解
+集成了词汇、阅读、画像和记忆四类共 9 个工具，使 Agent 能够全面了解
 用户的学习状况并给出个性化的英语阅读辅导。
 
 工具列表：
     - ``search_vocabulary``: 搜索收藏的单词。
     - ``get_word_detail``: 获取单个单词详情。
+    - ``get_all_vocabulary``: 获取全部收藏单词（按掌握程度分组）。
     - ``get_reading_history``: 获取阅读历史。
     - ``get_article_content``: 获取文章内容。
     - ``get_sentence_collection``: 获取收藏的句子。
@@ -29,7 +30,11 @@ from app.agents.tools.reading import (
     GetReadingHistoryTool,
     GetSentenceCollectionTool,
 )
-from app.agents.tools.vocabulary import GetWordDetailTool, SearchVocabularyTool
+from app.agents.tools.vocabulary import (
+    GetAllVocabularyTool,
+    GetWordDetailTool,
+    SearchVocabularyTool,
+)
 from app.core.ai.prompt_manager import load_prompt
 
 # ReAct 推理的最大迭代步数。
@@ -71,6 +76,7 @@ class ReadingCoachAgent(BaseAgent):
         # 词汇收藏工具。
         self._registry.register(SearchVocabularyTool())
         self._registry.register(GetWordDetailTool())
+        self._registry.register(GetAllVocabularyTool())
         # 阅读数据工具。
         self._registry.register(GetReadingHistoryTool())
         self._registry.register(GetArticleContentTool())

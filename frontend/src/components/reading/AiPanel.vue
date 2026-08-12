@@ -280,6 +280,20 @@ function extractWordMeaning(content: string): string {
 }
 
 /**
+ * 从 AI 解释的第一行提取单词原形。
+ * AI 回复的第一行格式为 "**{原形}** /IPA/"，
+ * 解析其中的加粗单词作为原形返回。
+ * 如果解析失败，返回空字符串。
+ */
+function extractBaseWord(content: string): string {
+  const match = content.match(/^\*\*(.+?)\*\*/)
+  if (match) {
+    return match[1].trim()
+  }
+  return ''
+}
+
+/**
  * 清理句子笔记：去除开头的引用块（"> 原句"），并去除 markdown 格式标记。
  */
 function cleanSentenceNote(content: string): string {
@@ -289,12 +303,14 @@ function cleanSentenceNote(content: string): string {
   return stripMarkdown(text)
 }
 
-/** 收藏当前解释的单词（保留音标+释义，去除例句和格式标记） */
+/** 收藏当前解释的单词（优先使用 AI 识别的原形，保留音标+释义，去除例句和格式标记） */
 async function handleSaveWord(): Promise<void> {
   if (!props.selectedText) return
   try {
+    // 从 AI 回复中提取原形，如果提取失败则使用用户选中的原始单词
+    const baseWord = extractBaseWord(aiContent.value) || props.selectedText
     await saveWord(
-      props.selectedText,
+      baseWord,
       props.selectedContext || props.selectedText,
       props.articleId,
       extractWordMeaning(aiContent.value)
