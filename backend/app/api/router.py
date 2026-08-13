@@ -12,6 +12,7 @@ from app.modules.ai.router import router as ai_router
 from app.modules.article.router import router as article_router
 from app.modules.auth.router import router as auth_router
 from app.modules.health.router import router as health_router
+from app.modules.llm_config.router import router as llm_config_router
 from app.modules.reading.router import router as reading_router
 from app.modules.users.router import router as users_router
 
@@ -23,6 +24,7 @@ api_router.include_router(article_router)
 api_router.include_router(reading_router)
 api_router.include_router(ai_router)
 api_router.include_router(agent_router)
+api_router.include_router(llm_config_router)
 api_router.include_router(admin_router)
 
 __all__ = ["api_router"]

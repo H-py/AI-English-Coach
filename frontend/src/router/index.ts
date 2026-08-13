@@ -62,6 +62,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Reading History' }
       },
       {
+        path: 'model-config',
+        name: 'model-config',
+        component: () => import('@/views/ModelConfigView.vue'),
+        meta: { title: 'Model Config' }
+      },
+      {
         path: 'profile',
         name: 'profile',
         component: () => import('@/views/ProfileView.vue'),

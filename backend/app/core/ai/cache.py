@@ -59,18 +59,28 @@ def _hash_input(*parts: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
-def cache_key(endpoint: str, level: str, *input_parts: str) -> str:
+def cache_key(
+    endpoint: str,
+    level: str,
+    *input_parts: str,
+    model: Optional[str] = None,
+) -> str:
     """为确定性的 AI 请求构建 Redis 缓存键。
 
     Args:
         endpoint: AI 端点名称，例如 ``"explain-word"``。
         level: 用户的英语水平（``"beginner"`` / …）。
         *input_parts: 主输入值（单词、上下文、句子……）。
+        model: 生成响应的模型名（可选）。不同模型使用同一输入时应生成
+            不同键，避免串缓存。
 
     Returns:
         形如 ``ai:cache:{endpoint}:{level}:{hash}`` 的 Redis 键字符串。
     """
-    return f"ai:cache:{endpoint}:{level}:{_hash_input(*input_parts)}"
+    parts = list(input_parts)
+    if model:
+        parts.append(f"model:{model}")
+    return f"ai:cache:{endpoint}:{level}:{_hash_input(*parts)}"
 
 
 async def get_cached_response(

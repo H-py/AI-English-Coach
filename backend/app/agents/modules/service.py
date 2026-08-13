@@ -20,6 +20,7 @@ from app.agents.base import AgentStep
 from app.agents.modules import repository as agent_repo
 from app.agents.modules.models import AgentConversation
 from app.agents.reading_coach import ReadingCoachAgent
+from app.core.ai.factory import get_llm_provider_for_user
 from app.core.ai.memory import build_chat_context, maybe_summarize
 from app.core.ai.provider import ChatMessage
 from app.modules.ai import memory_repository as mem_repo
@@ -137,8 +138,9 @@ async def run_reading_coach_agent(
     await agent_repo.touch_conversation(db, conv_id)
 
     # ---- 4. 实例化并执行 Agent ----
+    provider = await get_llm_provider_for_user(db, user.id)
     agent = ReadingCoachAgent(
-        db, redis, user.id, article_id, history_id
+        db, redis, user.id, article_id, history_id, provider=provider
     )
 
     final_answer_parts: list[str] = []

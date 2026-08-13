@@ -20,6 +20,7 @@ const icons: Record<string, string> = {
   vocabulary: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z M8 7h8 M8 11h6',
   sentences: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
   history: 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8 M3 3v5h5 M12 7v5l4 2',
+  modelConfig: 'M4 21v-7 M4 10V3 M12 21v-9 M12 8V3 M20 21v-5 M20 12V3 M1 14h6 M9 8h6 M17 16h6',
   profile: 'M20 21a8 8 0 0 0-16 0 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'
 }
 
@@ -35,6 +36,7 @@ const navItems = computed<NavItem[]>(() => [
   { name: 'vocabulary', to: '/vocabulary', icon: 'vocabulary' },
   { name: 'sentences', to: '/sentences', icon: 'sentences' },
   { name: 'history', to: '/history', icon: 'history' },
+  { name: 'modelConfig', to: '/model-config', icon: 'modelConfig' },
   { name: 'profile', to: '/profile', icon: 'profile' }
 ])
 

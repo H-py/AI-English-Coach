@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
     DEEPSEEK_MODEL: str = "deepseek-chat"
+    # 用户自定义大模型 API Key 的静态加密密钥（Fernet）。为空时明文存储。
+    AI_API_KEY_SECRET: str = ""
 
     # ---- JWT ----
     JWT_SECRET_KEY: str = "change-me-in-production"

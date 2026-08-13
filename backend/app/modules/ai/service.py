@@ -26,7 +26,7 @@ from app.core.ai.cache import (
     get_cached_response,
     set_cached_response,
 )
-from app.core.ai.factory import get_llm_provider
+from app.core.ai.factory import get_llm_provider_for_user
 from app.core.ai.memory import build_chat_context, maybe_summarize
 from app.core.ai.prompt_manager import load_reading_prompt, load_system_prompt
 from app.core.ai.provider import ChatMessage
@@ -164,7 +164,8 @@ async def explain_word(
     )
 
     level = user.english_level.value
-    ckey = cache_key("explain-word", level, data.word, data.context)
+    provider = await get_llm_provider_for_user(db, user.id)
+    ckey = cache_key("explain-word", level, data.word, data.context, model=provider.model)
 
     # 缓存命中 —— 作为单个分块回放。
     cached = await get_cached_response(redis, ckey)
@@ -185,7 +186,6 @@ async def explain_word(
         ChatMessage("user", user_prompt),
     ]
 
-    provider = get_llm_provider()
     collected: list[str] = []
     async for chunk in provider.chat_stream(
         messages, temperature=_TEMP_EXPLAIN_WORD,
@@ -227,7 +227,8 @@ async def analyze_sentence(
     )
 
     level = user.english_level.value
-    ckey = cache_key("analyze-sentence", level, data.sentence)
+    provider = await get_llm_provider_for_user(db, user.id)
+    ckey = cache_key("analyze-sentence", level, data.sentence, model=provider.model)
 
     cached = await get_cached_response(redis, ckey)
     if cached is not None:
@@ -245,7 +246,6 @@ async def analyze_sentence(
         ChatMessage("user", user_prompt),
     ]
 
-    provider = get_llm_provider()
     collected: list[str] = []
     async for chunk in provider.chat_stream(
         messages, temperature=_TEMP_ANALYZE_SENTENCE,
@@ -287,7 +287,8 @@ async def translate_sentence(
     )
 
     level = user.english_level.value
-    ckey = cache_key("translate-sentence", level, data.sentence)
+    provider = await get_llm_provider_for_user(db, user.id)
+    ckey = cache_key("translate-sentence", level, data.sentence, model=provider.model)
 
     cached = await get_cached_response(redis, ckey)
     if cached is not None:
@@ -305,7 +306,6 @@ async def translate_sentence(
         ChatMessage("user", user_prompt),
     ]
 
-    provider = get_llm_provider()
     collected: list[str] = []
     async for chunk in provider.chat_stream(
         messages, temperature=_TEMP_TRANSLATE_SENTENCE,
@@ -347,7 +347,8 @@ async def paragraph_summary(
     )
 
     level = user.english_level.value
-    ckey = cache_key("paragraph-summary", level, data.paragraph)
+    provider = await get_llm_provider_for_user(db, user.id)
+    ckey = cache_key("paragraph-summary", level, data.paragraph, model=provider.model)
 
     cached = await get_cached_response(redis, ckey)
     if cached is not None:
@@ -365,7 +366,6 @@ async def paragraph_summary(
         ChatMessage("user", user_prompt),
     ]
 
-    provider = get_llm_provider()
     collected: list[str] = []
     async for chunk in provider.chat_stream(
         messages, temperature=_TEMP_PARAGRAPH_SUMMARY,
@@ -420,7 +420,7 @@ async def chat(
         db, redis, user, article, data.message
     )
 
-    provider = get_llm_provider()
+    provider = await get_llm_provider_for_user(db, user.id)
     collected: list[str] = []
     async for chunk in provider.chat_stream(
         messages, temperature=_TEMP_CHAT, max_tokens=_MAX_TOKENS_CHAT,
@@ -569,7 +569,7 @@ async def generate_summary(
         chat_records=chat_text,
     )
 
-    provider = get_llm_provider()
+    provider = await get_llm_provider_for_user(db, user.id)
     response = await provider.chat(
         messages=[
             ChatMessage("system", system_prompt),
@@ -648,7 +648,7 @@ async def generate_quiz(
         level=user.english_level.value,
     )
 
-    provider = get_llm_provider()
+    provider = await get_llm_provider_for_user(db, user.id)
     response = await provider.chat(
         messages=[
             ChatMessage("system", system_prompt),

@@ -85,7 +85,7 @@ def _sse_stream(
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
             yield f"data: {json.dumps({'done': True})}\n\n"
         except BizException as e:
-            yield f"data: {json.dumps({'error': e.message})}\n\n"
+            yield f"data: {json.dumps({'error': e.message, 'code': e.code})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 

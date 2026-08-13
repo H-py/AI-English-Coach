@@ -501,6 +501,40 @@ CREATE TABLE IF NOT EXISTS agent_steps (
 CREATE INDEX IF NOT EXISTS ix_agent_steps_session_id ON agent_steps (session_id);
 
 -- ------------------------------------------------------------
+-- 21. user_llm_configs 表（用户自定义大模型配置）
+-- ------------------------------------------------------------
+-- 对应 backend/app/modules/llm_config/models.py 中的 UserLlmConfig 模型
+-- 每个用户可配置多条 OpenAI 兼容模型服务；api_key 以 Fernet 加密存储
+-- （AI_API_KEY_SECRET / JWT_SECRET_KEY 派生）。is_active 标记当前使用中
+-- 的那一条，部分唯一索引保证每用户至多一条激活；没有激活记录时调用
+-- 回落到默认模型。
+CREATE TABLE IF NOT EXISTS user_llm_configs (
+    id             BIGINT        GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id        BIGINT        NOT NULL REFERENCES users(id),
+    provider_name  VARCHAR(100)  NOT NULL DEFAULT '',
+    base_url       VARCHAR(512)  NOT NULL,
+    model          VARCHAR(100)  NOT NULL,
+    api_key        VARCHAR(512)  NOT NULL DEFAULT '',
+    is_active      BOOLEAN       NOT NULL DEFAULT FALSE,
+    created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+-- 索引
+CREATE INDEX IF NOT EXISTS ix_user_llm_configs_user_id
+    ON user_llm_configs (user_id);
+-- 每用户至多一条激活配置
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_llm_configs_one_active
+    ON user_llm_configs (user_id) WHERE is_active;
+
+-- updated_at 触发器（复用 update_updated_at() 函数）
+DROP TRIGGER IF EXISTS trg_user_llm_configs_updated_at ON user_llm_configs;
+CREATE TRIGGER trg_user_llm_configs_updated_at
+    BEFORE UPDATE ON user_llm_configs
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at();
+
+-- ------------------------------------------------------------
 -- 20. 验证查询
 -- ------------------------------------------------------------
 -- 执行后可运行以下语句确认表和数据：

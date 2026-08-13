@@ -36,6 +36,7 @@ from app.agents.tools.vocabulary import (
     SearchVocabularyTool,
 )
 from app.core.ai.prompt_manager import load_prompt
+from app.core.ai.provider import LLMProvider
 
 # ReAct 推理的最大迭代步数。
 _MAX_ITERATIONS = 6
@@ -56,6 +57,7 @@ class ReadingCoachAgent(BaseAgent):
         user_id: int,
         article_id: Optional[int] = None,
         history_id: Optional[int] = None,
+        provider: Optional[LLMProvider] = None,
     ) -> None:
         """初始化阅读教练 Agent。
 
@@ -68,8 +70,11 @@ class ReadingCoachAgent(BaseAgent):
             user_id: 当前用户 id。
             article_id: 用户正在阅读的文章 id（可选）。
             history_id: 当前阅读会话的历史记录 id（可选）。
+            provider: 用户自定义的 LLM 提供方（可选）；为空时使用全局默认。
         """
-        super().__init__(db, redis, user_id, article_id, history_id)
+        super().__init__(
+            db, redis, user_id, article_id, history_id, provider=provider
+        )
 
         # 构建工具注册表，注册全部工具。
         self._registry = ToolRegistry()

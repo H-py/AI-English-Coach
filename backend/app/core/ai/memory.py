@@ -37,7 +37,7 @@ from app.core.ai.cache import (
     set_cached_profile,
     truncate_for_context,
 )
-from app.core.ai.factory import get_llm_provider
+from app.core.ai.factory import get_llm_provider_for_user
 from app.core.ai.prompt_manager import load_prompt
 from app.core.ai.provider import ChatMessage
 from app.modules.article.models import Article
@@ -360,7 +360,7 @@ async def _summarize_messages(
         conversation=conversation_text,
     )
 
-    provider = get_llm_provider()
+    provider = await get_llm_provider_for_user(db, user_id)
     response = await provider.chat(
         messages=[ChatMessage("user", user_prompt)],
         temperature=_TEMP_SUMMARIZE,
@@ -534,7 +534,7 @@ async def _generate_profile(
         memories=memories_text,
     )
 
-    provider = get_llm_provider()
+    provider = await get_llm_provider_for_user(db, user_id)
     response = await provider.chat(
         messages=[ChatMessage("user", user_prompt)],
         temperature=_TEMP_PROFILE,

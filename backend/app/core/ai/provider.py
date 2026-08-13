@@ -34,6 +34,12 @@ class LLMProvider(ABC):
     使得提供方可以在不影响业务逻辑的情况下被替换。
     """
 
+    @property
+    @abstractmethod
+    def model(self) -> str:
+        """当前提供方使用的模型名（用于缓存键区分与展示）。"""
+        ...
+
     @abstractmethod
     async def chat(
         self,

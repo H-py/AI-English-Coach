@@ -32,7 +32,7 @@ import redis.asyncio as aioredis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.ai.factory import get_llm_provider
-from app.core.ai.provider import ChatMessage
+from app.core.ai.provider import ChatMessage, LLMProvider
 from app.agents.tools.base import ToolRegistry, ToolResult
 
 logger = logging.getLogger(__name__)
@@ -86,13 +86,14 @@ class BaseAgent(ABC):
         user_id: int,
         article_id: Optional[int] = None,
         history_id: Optional[int] = None,
+        provider: Optional[LLMProvider] = None,
     ) -> None:
         self._db = db
         self._redis = redis
         self._user_id = user_id
         self._article_id = article_id
         self._history_id = history_id
-        self._provider = get_llm_provider()
+        self._provider = provider or get_llm_provider()
 
     @abstractmethod
     def build_system_prompt(self) -> str:
