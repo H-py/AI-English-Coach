@@ -13,6 +13,7 @@ from app.modules.article.repository import (
     delete_article as repo_delete_article,
     get_all_tags as repo_get_all_tags,
     get_article_by_id as repo_get_article_by_id,
+    get_article_neighbors as repo_get_article_neighbors,
     increment_view_count as repo_increment_view_count,
     list_articles as repo_list_articles,
     update_article as repo_update_article,
@@ -21,6 +22,8 @@ from app.modules.article.schemas import (
     ArticleCreate,
     ArticleListItem,
     ArticleListResponse,
+    ArticleNeighborRef,
+    ArticleNeighborsOut,
     ArticleOut,
     ArticleQueryParams,
     ArticleUpdate,
@@ -101,6 +104,37 @@ async def get_article_detail(
     await repo_increment_view_count(db, article_id)
 
     return result
+
+
+async def get_article_neighbors(
+    db: AsyncSession, article_id: int
+) -> ArticleNeighborsOut:
+    """返回当前文章的上一篇 / 下一篇（循环）。
+
+    顺序与列表接口一致（``created_at`` 倒序）。循环规则：第一篇的
+    上一篇是最后一篇，最后一篇的下一篇是第一篇。
+
+    Args:
+        db: 当前活跃的异步会话。
+        article_id: 当前文章的主键。
+
+    Returns:
+        :class:`ArticleNeighborsOut`，包含 ``prev`` 与 ``next`` 的
+        轻量引用（可能为 ``None``）。
+
+    Raises:
+        BizException: 如果不存在指定 id 的文章
+            （错误码 ``90002``）。
+    """
+    article = await repo_get_article_by_id(db, article_id)
+    if article is None:
+        raise BizException("article not found", code=ARTICLE_NOT_FOUND_CODE)
+
+    prev, nxt = await repo_get_article_neighbors(db, article_id)
+    return ArticleNeighborsOut(
+        prev=ArticleNeighborRef(id=prev[0], title=prev[1]) if prev else None,
+        next=ArticleNeighborRef(id=nxt[0], title=nxt[1]) if nxt else None,
+    )
 
 
 async def create_article(

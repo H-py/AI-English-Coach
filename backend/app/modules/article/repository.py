@@ -31,6 +31,44 @@ async def get_article_by_id(
     return result.scalars().first()
 
 
+async def get_article_neighbors(
+    db: AsyncSession, article_id: int
+) -> tuple[Optional[tuple[int, str]], Optional[tuple[int, str]]]:
+    """返回当前文章的上一篇与下一篇（循环）。
+
+    顺序与列表接口一致：已发布文章按 ``created_at`` 倒序（最新优先），
+    同时间戳时以 ``id`` 倒序保证确定性。循环规则：第一篇的上一篇是
+    最后一篇，最后一篇的下一篇是第一篇。只有一篇文章时，前后都是它自身。
+
+    Args:
+        db: 当前活跃的异步会话。
+        article_id: 当前文章的主键。
+
+    Returns:
+        ``(prev, next)`` 元组，每项为 ``(id, title)`` 或 ``None``。
+        若文章不存在或数据库无已发布文章，两项均为 ``None``。
+    """
+    stmt = (
+        select(Article.id, Article.title)
+        .where(Article.is_published.is_(True))
+        .order_by(Article.created_at.desc(), Article.id.desc())
+    )
+    rows = (await db.execute(stmt)).all()
+
+    if not rows:
+        return None, None
+
+    ids = [r.id for r in rows]
+    if article_id not in ids:
+        return None, None
+
+    idx = ids.index(article_id)
+    n = len(ids)
+    prev = rows[(idx - 1) % n]
+    nxt = rows[(idx + 1) % n]
+    return (prev.id, prev.title), (nxt.id, nxt.title)
+
+
 async def list_articles(
     db: AsyncSession,
     difficulty: Optional[Difficulty] = None,

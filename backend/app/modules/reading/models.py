@@ -72,6 +72,9 @@ class WordCollection(Base):
     ai_explanation: Mapped[Optional[str]] = mapped_column(
         Text, nullable=True, default=None
     )
+    short_meaning: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True, default=None
+    )
     mastery_level: Mapped[MasteryLevel] = mapped_column(
         Enum(MasteryLevel),
         nullable=False,

@@ -14,6 +14,7 @@ import { useAgent } from '@/composables/useAgent'
 import { getAgentConversations, getAgentConversationDetail, deleteAgentConversation } from '@/api/agent'
 import type { AgentConversation, ThinkingStep } from '@/types/agent'
 import AgentThinkingFlow from '@/components/reading/AgentThinkingFlow.vue'
+import SpeakerButton from '@/components/SpeakerButton.vue'
 
 hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('python', python)
@@ -93,6 +94,18 @@ const md = new MarkdownIt({
 function renderMarkdown(content: string): string {
   if (!content) return ''
   return md.render(content)
+}
+
+/**
+ * 从 Agent 回复中提取可发音的单词。
+ * Agent 查词结果通常以 "**word** /IPA/" 开头，识别该模式供发音按钮使用。
+ * 返回 { word, phonetic }；无匹配时返回 null。
+ */
+function extractSpeakable(content: string): { word: string; phonetic: string } | null {
+  if (!content) return null
+  const m = content.match(/\*\*(.+?)\*\*\s*(\/[^/\n]+\/)?/)
+  if (!m || !m[1]) return null
+  return { word: m[1].trim(), phonetic: m[2] || '' }
 }
 
 // ---- 时间格式化 ----
@@ -439,11 +452,23 @@ onMounted(() => {
               </div>
 
               <!-- 回复内容 -->
-              <div
-                v-if="msg.content"
-                class="sl-msg__content markdown-body"
-                v-html="renderMarkdown(msg.content)"
-              />
+              <template v-if="msg.content">
+                <!-- 单词发音工具条（Agent 查词结果） -->
+                <div
+                  v-if="extractSpeakable(msg.content)"
+                  class="sl-msg__speak-row"
+                >
+                  <span class="sl-msg__speak-word">{{ extractSpeakable(msg.content)!.word }}</span>
+                  <span v-if="extractSpeakable(msg.content)!.phonetic" class="sl-msg__speak-phonetic">
+                    {{ extractSpeakable(msg.content)!.phonetic }}
+                  </span>
+                  <SpeakerButton :word="extractSpeakable(msg.content)!.word" size="small" />
+                </div>
+                <div
+                  class="sl-msg__content markdown-body"
+                  v-html="renderMarkdown(msg.content)"
+                />
+              </template>
               <span v-if="msg.isStreaming && msg.content" class="typing-cursor" />
             </div>
           </template>
@@ -762,6 +787,42 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* 单词发音工具条（Agent 查词结果） */
+.sl-msg__speak-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 6px 10px;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.sl-msg__speak-word {
+  font-size: 14px;
+  font-weight: 600;
+  color: #171717;
+}
+
+.sl-msg__speak-phonetic {
+  font-size: 13px;
+  color: #71717a;
+}
+
+:global(html.dark) .sl-msg__speak-row {
+  border-color: #3f3f46;
+  background: #18181b;
+}
+
+:global(html.dark) .sl-msg__speak-word {
+  color: #e5e5e5;
+}
+
+:global(html.dark) .sl-msg__speak-phonetic {
+  color: #a1a1aa;
 }
 
 .sl-msg__content {

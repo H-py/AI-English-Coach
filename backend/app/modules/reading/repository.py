@@ -31,12 +31,14 @@ async def get_or_create_word(
     context: str,
     article_id: Optional[int],
     ai_explanation: Optional[str],
+    short_meaning: Optional[str] = None,
 ) -> WordCollection:
     """为用户新增或更新（upsert）一个收藏的单词。
 
     如果用户已经收藏过 ``word``，则更新已有行的 ``context``，并在提供了
-    新解释时更新 ``ai_explanation``。若提供了新的 ``article_id``，也会
-    一并刷新。否则创建一条新的 :class:`WordCollection` 行。
+    新解释时更新 ``ai_explanation`` 和 ``short_meaning``。若提供了新的
+    ``article_id``，也会一并刷新。否则创建一条新的 :class:`WordCollection`
+    行。
 
     Args:
         db: 当前活跃的异步会话。
@@ -45,6 +47,7 @@ async def get_or_create_word(
         context: 该单词出现的句子。
         article_id: 单词所属的文章，可选。
         ai_explanation: 预先生成的 AI 解释，可选。
+        short_meaning: 单词的简短释义，可选。
 
     Returns:
         新建或更新后的 :class:`WordCollection`。
@@ -61,6 +64,8 @@ async def get_or_create_word(
         existing.context = context
         if ai_explanation is not None:
             existing.ai_explanation = ai_explanation
+        if short_meaning is not None:
+            existing.short_meaning = short_meaning
         if article_id is not None:
             existing.article_id = article_id
         await db.flush()
@@ -73,6 +78,7 @@ async def get_or_create_word(
         context=context,
         article_id=article_id,
         ai_explanation=ai_explanation,
+        short_meaning=short_meaning,
     )
     db.add(word_obj)
     await db.flush()

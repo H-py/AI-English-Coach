@@ -15,12 +15,14 @@ from app.core.response import ResponseModel, success
 from app.modules.article.models import Difficulty
 from app.modules.article.schemas import (
     ArticleListResponse,
+    ArticleNeighborsOut,
     ArticleOut,
     ArticleQueryParams,
 )
 from app.modules.article.service import (
     get_article_detail,
     get_article_list,
+    get_article_neighbors,
     get_tags,
 )
 
@@ -60,6 +62,21 @@ async def list_tags_endpoint(
     """返回已发布文章使用的所有唯一标签。"""
     tags = await get_tags(db)
     return success(tags)
+
+
+@router.get(
+    "/{article_id}/neighbors",
+    response_model=ResponseModel[ArticleNeighborsOut],
+    summary="Get article neighbors",
+)
+async def get_article_neighbors_endpoint(
+    article_id: int,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """返回当前文章的上一篇 / 下一篇（按列表顺序循环）。"""
+    neighbors = await get_article_neighbors(db, article_id)
+    return success(neighbors)
 
 
 @router.get(

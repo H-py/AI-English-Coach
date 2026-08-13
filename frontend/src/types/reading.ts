@@ -17,6 +17,7 @@ export interface WordCollection {
   context: string
   article_id: number | null
   ai_explanation: string | null
+  short_meaning: string | null
   mastery_level: MasteryLevel
   study_count: number
   last_studied_at: string | null
@@ -100,6 +101,7 @@ export interface SaveWordPayload {
   context: string
   article_id?: number
   ai_explanation?: string
+  short_meaning?: string
 }
 
 export interface SaveSentencePayload {

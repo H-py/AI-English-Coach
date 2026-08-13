@@ -4,6 +4,7 @@
 持久化单词/句子收藏和阅读历史。
 """
 
+import re
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -65,10 +66,120 @@ async def _get_article_or_raise(
 # ---- 单词收藏服务 ----------------------------------------------------------
 
 
+def extract_short_meaning(expl: Optional[str]) -> Optional[str]:
+    """从 AI 解释（markdown）中提取简短释义。
+
+    简短释义 = 单词的核心含义词条列表（如 ``"主管、高管、行政的、执行的"``），
+    最多 4 个，用顿号连接，不含解释性描述。AI 解释由 LLM 生成，格式存在
+    多种变体（带编号、带加粗、纯文本、极简等），本函数按行解析并兼容。
+
+    Args:
+        expl: 完整的 AI 解释文本。
+
+    Returns:
+        提取出的简短释义；无法提取时返回 ``None``。
+    """
+    if not expl or not expl.strip():
+        return None
+    text = expl.strip()
+
+    # 定位通用释义段落（多种标记形式）
+    m = re.search(
+        r"(?:\*\*)?通用释义(?:\*\*)?\s*[：:]\s*([\s\S]*)",
+        text,
+        re.IGNORECASE,
+    )
+    if m:
+        section = re.split(
+            r"(?:\*\*)?语境释义(?:\*\*)?\s*[：:]|例句\s*[：:]",
+            m.group(1),
+            maxsplit=1,
+        )[0]
+        terms = _extract_meaning_terms(section)
+        if terms:
+            return "、".join(terms[:4])
+
+        # 通用释义段落存在但无词条，回退到段落第一行
+        first_line = next(
+            (l.strip() for l in section.split("\n") if l.strip()), None
+        )
+        if first_line:
+            plain = re.sub(r"[#>*`]", "", first_line).strip()
+            return plain[:40]
+
+    # 无通用释义段落（极简格式）：尝试 "释义/含义：内容" 行，截断 40 字
+    m2 = re.search(
+        r"(?:\*\*)?(?:释义|含义)(?:\*\*)?\s*[：:]\s*(.+)",
+        text,
+        re.IGNORECASE,
+    )
+    if m2:
+        plain = re.sub(r"[#>*`]", "", m2.group(1)).strip()
+        if plain:
+            return plain[:40]
+
+    # 最后回退：整个解释前 40 字（去 markdown）
+    plain = re.sub(r"[#>*`]", "", text)
+    return plain[:40]
+
+
+def _extract_meaning_terms(section: str) -> list[str]:
+    """从通用释义段落中提取含义词条列表（去重，最多 4 个）。
+
+    每条释义形如 ``"主管，高管：公司中负责决策的人"``，冒号前是含义词
+    部分；可能含编号、加粗、"含义一"前缀等变体。逐个含义词拆分提取。
+
+    Args:
+        section: 通用释义段落文本。
+
+    Returns:
+        按出现顺序去重后的含义词条列表（最多 4 个）。
+    """
+    terms: list[str] = []
+    for line in section.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        # 去掉编号前缀和加粗标记
+        line = re.sub(r"^\d+[.、]\s*", "", line).replace("**", "").strip()
+        if not line:
+            continue
+        # 去掉 "含义一：/含义二：" 等标签前缀
+        line = re.sub(r"^含义[一二三四五六七八九十][：:]\s*", "", line).strip()
+        if not line:
+            continue
+
+        # 分离含义词部分（第一个冒号前）；无冒号则整行即含义词部分
+        head = line
+        m = re.match(r"^(.+?)\s*[：:]\s*(.+)$", line)
+        if m:
+            head = m.group(1).strip()
+
+        # 先去掉括号注解（如（动词）（医学）），避免括号内顿号干扰拆分
+        head = re.sub(r"[（(][^（）()]*[）)]", "", head).strip()
+        if not head:
+            continue
+
+        # 再按逗号/顿号拆分为独立含义词
+        for part in re.split(r"[，,、·]", head):
+            part = part.strip()
+            if not part:
+                continue
+            if part not in terms:
+                terms.append(part)
+            if len(terms) >= 4:
+                return terms
+
+    return terms
+
+
 async def save_word(
     db: AsyncSession, user_id: int, data: WordCollectionCreate
 ) -> WordCollectionOut:
     """为用户保存（upsert）一个收藏的单词。
+
+    若请求未提供 ``short_meaning`` 但提供了 ``ai_explanation``，则自动
+    从解释中提取第一条释义作为简短释义。
 
     Args:
         db: 当前活跃的异步会话。
@@ -78,6 +189,10 @@ async def save_word(
     Returns:
         新建或更新后单词对应的 :class:`WordCollectionOut`。
     """
+    short_meaning = data.short_meaning
+    if not short_meaning and data.ai_explanation:
+        short_meaning = extract_short_meaning(data.ai_explanation)
+
     word = await repo.get_or_create_word(
         db,
         user_id=user_id,
@@ -85,6 +200,7 @@ async def save_word(
         context=data.context,
         article_id=data.article_id,
         ai_explanation=data.ai_explanation,
+        short_meaning=short_meaning,
     )
     return WordCollectionOut.model_validate(word)
 

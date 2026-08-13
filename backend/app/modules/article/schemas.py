@@ -110,6 +110,25 @@ class ArticleListResponse(BaseModel):
     page_size: int
 
 
+class ArticleNeighborRef(BaseModel):
+    """相邻文章的轻量引用（id + 标题）。"""
+
+    id: int
+    title: str
+
+
+class ArticleNeighborsOut(BaseModel):
+    """当前文章的上一篇 / 下一篇（按列表顺序循环）。
+
+    顺序与列表接口一致（``created_at`` 倒序）。循环规则：
+    第一篇的上一篇是最后一篇，最后一篇的下一篇是第一篇。
+    只有一篇文章时，前后都是它自身。
+    """
+
+    prev: Optional[ArticleNeighborRef] = None
+    next: Optional[ArticleNeighborRef] = None
+
+
 class ArticleQueryParams(BaseModel):
     """用于筛选和分页文章列表的查询参数。
 

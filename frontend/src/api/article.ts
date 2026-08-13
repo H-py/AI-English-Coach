@@ -2,6 +2,7 @@ import { http } from './request'
 import type {
   Article,
   ArticleListResponse,
+  ArticleNeighbors,
   ArticleQuery,
 } from '@/types/article'
 
@@ -28,5 +29,10 @@ export const articleApi = {
   /** 获取文章详情（含正文） */
   getDetail(id: number): Promise<Article> {
     return http.get(`/articles/${id}`)
+  },
+
+  /** 获取当前文章的上一篇 / 下一篇（按列表顺序循环） */
+  getNeighbors(id: number): Promise<ArticleNeighbors> {
+    return http.get(`/articles/${id}/neighbors`)
   }
 }

@@ -11,6 +11,7 @@ import bash from 'highlight.js/lib/languages/bash'
 import json from 'highlight.js/lib/languages/json'
 import 'highlight.js/styles/github.css'
 import { useReading } from '@/composables/useReading'
+import SpeakerButton from '@/components/SpeakerButton.vue'
 
 // 注册常用语言（按需加载，避免全量引入 highlight.js）
 hljs.registerLanguage('javascript', javascript)
@@ -42,6 +43,8 @@ const props = defineProps<{
   selectedText: string
   /** 选中文本所在的完整句子（作为 AI 上下文） */
   selectedContext: string
+  /** 选中内容是否为单词的一部分（截断选择，如选了单词的前半截） */
+  selectedPartial?: boolean
 }>()
 
 const { t } = useI18n()
@@ -59,6 +62,7 @@ const {
   sendChat,
   saveWord,
   saveSentence,
+  clearAiPanel,
   loadChatHistory,
   // 阅读总结
   summary,
@@ -103,6 +107,18 @@ function renderMarkdown(content: string): string {
 /** 解释类模式的渲染内容（computed，随 aiContent 变化自动更新） */
 const renderedContent = computed(() => renderMarkdown(aiContent.value))
 
+/** 从 AI 解释第一行提取的单词（用于发音，格式 **word**） */
+const explainWordForSpeech = computed(() => {
+  const m = aiContent.value.match(/^\*\*(.+?)\*\*/)
+  return m ? m[1].trim() : ''
+})
+
+/** 从 AI 解释第一行提取的音标（如 /rʌn/） */
+const explainPhonetic = computed(() => {
+  const m = aiContent.value.match(/^\*\*(.+?)\*\*\s*(\/[^/\n]+\/)/)
+  return m ? m[2] : ''
+})
+
 // ---- 标签页 ----
 
 const activeTab = ref<'explain' | 'chat' | 'summary'>('explain')
@@ -115,8 +131,8 @@ const wordCount = computed(() => {
   return props.selectedText.trim().split(/\s+/).filter(Boolean).length
 })
 
-/** 是否为单词（少于 3 个词视为单词 / 短语） */
-const isWord = computed(() => wordCount.value > 0 && wordCount.value < 3)
+/** 是否为单词（仅 1 个词视为单词；2 个及以上视为短语/句子） */
+const isWord = computed(() => wordCount.value === 1)
 
 // ---- 收藏状态 ----
 
@@ -150,11 +166,14 @@ watch(
     wordSaved.value = false
     sentenceSaved.value = false
 
-    if (isWord.value) {
-      // 单词 / 短语：自动触发解释
+    if (isWord.value && !props.selectedPartial) {
+      // 完整单词：自动触发解释
       explainWord(newText, props.selectedContext || newText, props.articleId, props.historyId)
+    } else if (isWord.value && props.selectedPartial) {
+      // 单词被截断选择：清空旧内容，等待用户重新选择完整单词
+      clearAiPanel()
     }
-    // 长句（>= 3 词）：不自动触发，显示选项按钮让用户选择
+    // 短语 / 句子（2 词及以上）：不自动触发，显示选项按钮让用户选择
   }
 )
 
@@ -166,9 +185,14 @@ watch(
  * 手动触发解释。
  * 单词/短语：调用 explainWord 进行单词释义；
  * 句子（>= 3 词）：调用 translateSentence 进行整句翻译。
+ * 单词被截断选择时提示用户重新选择完整单词，不发起请求。
  */
 function handleExplain(): void {
   if (!props.selectedText) return
+  if (props.selectedPartial) {
+    message.warning(t('reading.selectFullWord'))
+    return
+  }
   if (isWord.value) {
     wordSaved.value = false
     explainWord(props.selectedText, props.selectedContext || props.selectedText, props.articleId, props.historyId)
@@ -181,12 +205,20 @@ function handleExplain(): void {
 /** 手动触发句子分析 */
 function handleAnalyzeSentence(): void {
   if (!props.selectedText) return
+  if (props.selectedPartial) {
+    message.warning(t('reading.selectFullWord'))
+    return
+  }
   sentenceSaved.value = false
   analyzeSentence(props.selectedText, props.articleId, props.historyId)
 }
 
 /** 手动触发段落总结 */
 function handleParagraphSummary(): void {
+  if (props.selectedPartial) {
+    message.warning(t('reading.selectFullWord'))
+    return
+  }
   const paragraph = props.selectedContext || props.selectedText
   if (!paragraph) return
   paragraphSummary(paragraph, props.articleId, props.historyId)
@@ -449,6 +481,17 @@ function getExplanation(questionId: number): string {
           </div>
         </div>
 
+        <!-- 单词被截断选择的提示 -->
+        <div
+          v-if="selectedPartial && isWord && !streaming"
+          class="ai-panel__partial"
+        >
+          <svg class="ai-panel__partial-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span class="ai-panel__hint">{{ t('reading.selectFullWord') }}</span>
+        </div>
+
         <!-- 思考中（streaming 已开始但尚未收到内容） -->
         <div v-if="streaming && !aiContent" class="ai-panel__thinking">
           <NSpin size="small" />
@@ -457,6 +500,15 @@ function getExplanation(questionId: number): string {
 
         <!-- AI 内容（markdown 渲染） -->
         <div v-if="aiContent" class="ai-panel__content">
+          <!-- 单词发音工具条（解释模式） -->
+          <div
+            v-if="aiMode === 'explain' && explainWordForSpeech"
+            class="ai-panel__speak-row"
+          >
+            <span class="ai-panel__speak-word">{{ explainWordForSpeech }}</span>
+            <span v-if="explainPhonetic" class="ai-panel__speak-phonetic">{{ explainPhonetic }}</span>
+            <SpeakerButton :word="explainWordForSpeech" size="small" />
+          </div>
           <!-- eslint-disable vue/no-v-html -->
           <div class="markdown-body" v-html="renderedContent" />
           <span v-if="streaming" class="typing-cursor" />
@@ -791,9 +843,70 @@ function getExplanation(questionId: number): string {
   padding: 8px 0;
 }
 
+/* ---- 单词截断选择提示 ---- */
+.ai-panel__partial {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 8px 0;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.ai-panel__partial-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+:global(html.dark) .ai-panel__partial {
+  border-color: #92400e;
+  background: #451a03;
+  color: #fcd34d;
+}
+
 /* ---- AI 内容区 ---- */
 .ai-panel__content {
   min-height: 40px;
+}
+
+/* 单词发音工具条 */
+.ai-panel__speak-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.ai-panel__speak-word {
+  font-size: 14px;
+  font-weight: 600;
+  color: #171717;
+}
+
+.ai-panel__speak-phonetic {
+  font-size: 13px;
+  color: #71717a;
+}
+
+:global(html.dark) .ai-panel__speak-row {
+  border-color: #3f3f46;
+  background: #18181b;
+}
+
+:global(html.dark) .ai-panel__speak-word {
+  color: #e5e5e5;
+}
+
+:global(html.dark) .ai-panel__speak-phonetic {
+  color: #a1a1aa;
 }
 
 /* ---- 收藏按钮区 ---- */

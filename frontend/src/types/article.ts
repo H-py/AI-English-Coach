@@ -56,6 +56,18 @@ export interface ArticleQuery {
   page_size?: number
 }
 
+/** 相邻文章的轻量引用（id + 标题） */
+export interface ArticleNeighbor {
+  id: number
+  title: string
+}
+
+/** 当前文章的上一篇 / 下一篇（按列表顺序循环） */
+export interface ArticleNeighbors {
+  prev: ArticleNeighbor | null
+  next: ArticleNeighbor | null
+}
+
 /** 创建文章的请求体 */
 export interface ArticleCreatePayload {
   title: string

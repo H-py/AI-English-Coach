@@ -19,14 +19,17 @@ from app.modules.reading.models import MasteryLevel
 class WordCollectionCreate(BaseModel):
     """保存（upsert）收藏单词的载荷。
 
-    ``article_id`` 和 ``ai_explanation`` 是可选的，因为学习者可能
-    从文章以外的来源收藏单词，或在 AI 解释尚未生成之前就收藏。
+    ``article_id``、``ai_explanation`` 和 ``short_meaning`` 是可选的，
+    因为学习者可能从文章以外的来源收藏单词，或在 AI 解释尚未生成
+    之前就收藏。``short_meaning`` 为单词的简短释义，供生词本卡片
+    列表直接展示。
     """
 
     word: str = Field(min_length=1, max_length=255)
     context: str
     article_id: Optional[int] = None
     ai_explanation: Optional[str] = None
+    short_meaning: Optional[str] = None
 
 
 class WordCollectionOut(BaseModel):
@@ -40,6 +43,7 @@ class WordCollectionOut(BaseModel):
     context: str
     article_id: Optional[int] = None
     ai_explanation: Optional[str] = None
+    short_meaning: Optional[str] = None
     mastery_level: MasteryLevel
     study_count: int
     last_studied_at: Optional[datetime] = None

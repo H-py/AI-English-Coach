@@ -250,6 +250,7 @@ CREATE TABLE IF NOT EXISTS word_collections (
     context         TEXT         NOT NULL,
     article_id      BIGINT       REFERENCES articles(id),
     ai_explanation  TEXT,
+    short_meaning   TEXT,
     mastery_level   masterylevel   NOT NULL DEFAULT 'new',
     study_count     INTEGER      NOT NULL DEFAULT 0,
     last_studied_at TIMESTAMPTZ,
