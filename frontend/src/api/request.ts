@@ -16,10 +16,7 @@ const { message } = createDiscreteApi(['message'])
 
 const request: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
-  timeout: 15000,
-  headers: {
-    'Content-Type': 'application/json'
-  }
+  timeout: 15000
 })
 
 // ---- 请求拦截器：注入 Bearer token ----

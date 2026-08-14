@@ -1,8 +1,21 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { NSelect, NButton, NSpin, useMessage } from 'naive-ui'
+import {
+  NButton,
+  NForm,
+  NFormItem,
+  NInput,
+  NModal,
+  NSelect,
+  NSpin,
+  NTabPane,
+  NTabs,
+  useMessage,
+  type FormInst,
+  type FormRules
+} from 'naive-ui'
 import { useAuthStore } from '@/stores/auth'
 import { authApi } from '@/api/auth'
 import { readingApi } from '@/api/reading'
@@ -13,12 +26,13 @@ import type { EnglishLevel } from '@/types/auth'
  * 个人中心 / 设置页。
  *
  * 展示当前登录用户的基本信息（用户名、邮箱、头像、注册时间、最近登录时间）
- * 与学习概览统计（与首页一致的 4 项指标），并支持切换英语水平等级。
+ * 与学习概览统计，并支持切换英语水平。头像 / 用户名 / 密码的修改收拢在
+ * 「修改个人信息」弹窗中，以三个页签分别编辑：
+ *  - 头像：选择图片上传到 MinIO；
+ *  - 用户名：修改显示名（唯一性由后端校验）；
+ *  - 密码：需验证旧密码。
  *
- * 数据在 onMounted 时并行拉取：
- *  - 用户信息来自 auth store（登录后已持久化）；
- *  - 统计通过 readingApi 并行获取，使用 Promise.allSettled 保证单项失败不影响其余展示。
- * 切换英语水平调用 authApi.updateMe 并同步更新 auth store；登出复用 useAuth.logout。
+ * 数据在 onMounted 时并行拉取；错误提示由 axios 响应拦截器统一处理。
  */
 
 const { t } = useI18n()
@@ -55,6 +69,86 @@ function formatDateTime(iso: string | null): string {
 }
 
 // ============================================================
+//  修改个人信息弹窗
+// ============================================================
+
+const showEditModal = ref(false)
+const activeTab = ref('avatar')
+
+/** 打开弹窗：回填用户名、清空密码表单 */
+function openEditModal(): void {
+  username.value = user.value?.username ?? ''
+  passwordForm.old_password = ''
+  passwordForm.new_password = ''
+  passwordForm.confirm_password = ''
+  activeTab.value = 'avatar'
+  showEditModal.value = true
+}
+
+// ============================================================
+//  头像上传（弹窗内）
+// ============================================================
+
+const avatarUploading = ref(false)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
+/** 点击「选择图片」：触发隐藏的 file input */
+function triggerAvatarUpload(): void {
+  fileInputRef.value?.click()
+}
+
+/** 选择文件后上传头像 */
+async function handleAvatarChange(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  avatarUploading.value = true
+  try {
+    const updated = await authApi.uploadAvatar(file)
+    authStore.setUser(updated)
+    message.success(t('profile.avatarUpdated'))
+  } catch {
+    // 错误由 axios 拦截器统一提示
+  } finally {
+    avatarUploading.value = false
+    // 清空 input，允许连续选择同一文件
+    input.value = ''
+  }
+}
+
+// ============================================================
+//  用户名编辑（弹窗内）
+// ============================================================
+
+const username = ref('')
+const usernameSaving = ref(false)
+
+/** 保存用户名 */
+async function handleSaveUsername(): Promise<void> {
+  const value = username.value.trim()
+  if (!value) {
+    message.error(t('auth.validation.usernameRequired'))
+    return
+  }
+  if (value === user.value?.username) {
+    message.success(t('profile.usernameUpdated'))
+    return
+  }
+  usernameSaving.value = true
+  try {
+    const updated = await authApi.updateMe({ username: value })
+    authStore.setUser(updated)
+    username.value = updated.username
+    message.success(t('profile.usernameUpdated'))
+  } catch {
+    // 错误由 axios 拦截器统一提示（如用户名已被占用）
+  } finally {
+    usernameSaving.value = false
+  }
+}
+
+// ============================================================
 //  英语水平选择
 // ============================================================
 
@@ -70,7 +164,7 @@ const levelUpdating = ref(false)
 /**
  * 切换英语水平：
  *  乐观更新选中值 -> 调用 authApi.updateMe -> 同步 auth store；
- *  失败时回退到 store 中的当前水平，错误提示由 axios 拦截器统一处理。
+ *  失败时回退到 store 中的当前水平。
  */
 async function handleLevelChange(value: string | number): Promise<void> {
   const level = value as EnglishLevel
@@ -82,10 +176,76 @@ async function handleLevelChange(value: string | number): Promise<void> {
     selectedLevel.value = updated.english_level
     message.success(t('profile.levelUpdated'))
   } catch {
-    // 错误由 axios 拦截器统一提示；回退选中值
     selectedLevel.value = user.value?.english_level ?? 'beginner'
   } finally {
     levelUpdating.value = false
+  }
+}
+
+// ============================================================
+//  修改密码（弹窗内）
+// ============================================================
+
+const passwordForm = reactive({
+  old_password: '',
+  new_password: '',
+  confirm_password: ''
+})
+const passwordSubmitting = ref(false)
+const passwordFormRef = ref<FormInst | null>(null)
+
+const passwordRules = computed<FormRules>(() => ({
+  old_password: [
+    { required: true, message: t('profile.validation.oldPasswordRequired'), trigger: ['blur', 'input'] }
+  ],
+  new_password: [
+    { required: true, message: t('profile.validation.newPasswordRequired'), trigger: ['blur', 'input'] },
+    {
+      validator: (_rule, value: string) => {
+        if (!value) return true
+        if (value.length < 6 || value.length > 128) {
+          return new Error(t('profile.validation.newPasswordLength'))
+        }
+        return true
+      },
+      trigger: ['blur', 'input']
+    }
+  ],
+  confirm_password: [
+    { required: true, message: t('profile.validation.confirmPasswordRequired'), trigger: ['blur', 'input'] },
+    {
+      validator: (_rule, value: string) => {
+        if (value && value !== passwordForm.new_password) {
+          return new Error(t('profile.validation.passwordMismatch'))
+        }
+        return true
+      },
+      trigger: ['blur', 'input']
+    }
+  ]
+}))
+
+/** 提交修改密码 */
+async function handleChangePassword(): Promise<void> {
+  try {
+    await passwordFormRef.value?.validate()
+  } catch {
+    return
+  }
+  passwordSubmitting.value = true
+  try {
+    await authApi.updatePassword({
+      old_password: passwordForm.old_password,
+      new_password: passwordForm.new_password
+    })
+    message.success(t('profile.passwordUpdated'))
+    passwordForm.old_password = ''
+    passwordForm.new_password = ''
+    passwordForm.confirm_password = ''
+  } catch {
+    // 错误由 axios 拦截器统一提示（如旧密码错误）
+  } finally {
+    passwordSubmitting.value = false
   }
 }
 
@@ -94,20 +254,14 @@ async function handleLevelChange(value: string | number): Promise<void> {
 // ============================================================
 
 interface StatItem {
-  /** i18n 标签 key */
   labelKey: string
   value: number
-  /** 图标 path（Lucide 风格，stroke-based，单 path 多子路径） */
   icon: string
-  /** 图标背景色类 */
   iconBgClass: string
-  /** 图标前景色类 */
   iconTextClass: string
-  /** 点击跳转路由 */
   route: string
 }
 
-/** Lucide 风格线性图标 path（24×24 viewBox，stroke-based） */
 const ICONS = {
   bookmark: 'm19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z',
   messageSquare: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
@@ -153,16 +307,7 @@ const stats = ref<StatItem[]>([
   }
 ])
 
-/**
- * 并行拉取统计数据。
- *
- * 使用 Promise.allSettled 保证单项失败时其余统计仍能正常展示；
- * 错误提示由 axios 响应拦截器统一处理，此处静默恢复。
- *
- * listHistory 取 page_size=100 以同时获取：
- *  - total → 阅读次数
- *  - items 中不同 article_id 的数量 → 已读文章数
- */
+/** 并行拉取统计数据，单项失败不影响其余展示 */
 async function fetchStats(): Promise<void> {
   statsLoading.value = true
   try {
@@ -180,7 +325,6 @@ async function fetchStats(): Promise<void> {
     }
     if (historyRes.status === 'fulfilled') {
       stats.value[2].value = historyRes.value.total
-      // 已读文章数 = 历史记录中不同 article_id 的数量
       const articleIds = new Set(historyRes.value.items.map((h) => h.article_id))
       stats.value[3].value = articleIds.size
     }
@@ -193,7 +337,6 @@ async function fetchStats(): Promise<void> {
 //  登出
 // ============================================================
 
-/** 登出：复用 useAuth.logout（清除认证态并跳转登录页） */
 async function handleLogout(): Promise<void> {
   await logout()
 }
@@ -203,11 +346,13 @@ async function handleLogout(): Promise<void> {
 // ============================================================
 
 onMounted(() => {
-  // 防御性自检：若用户信息缺失（如会话异常），回登录页，避免渲染残缺的个人页
+  // 防御性自检：若用户信息缺失（如会话异常），回登录页
   if (!authStore.user) {
     router.push('/login')
     return
   }
+  username.value = authStore.user.username
+  selectedLevel.value = authStore.user.english_level
   fetchStats()
 })
 </script>
@@ -231,8 +376,9 @@ onMounted(() => {
       v-if="user"
       class="rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900"
     >
-      <!-- 头像 + 用户名 -->
+      <!-- 头像 + 用户名 + 修改按钮 -->
       <div class="flex items-center gap-4">
+        <!-- 头像（仅展示） -->
         <img
           v-if="user.avatar_url"
           :src="user.avatar_url"
@@ -241,21 +387,43 @@ onMounted(() => {
         />
         <div
           v-else
-          class="h-16 w-16 flex-shrink-0 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center text-xl font-bold text-blue-600 dark:text-blue-400"
+          class="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-xl font-bold text-blue-600 dark:bg-blue-500/20 dark:text-blue-400"
         >
           {{ userInitial }}
         </div>
-        <h2 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
-          {{ user.username }}
-        </h2>
+
+        <!-- 用户名 -->
+        <div class="min-w-0 flex-1">
+          <h2
+            class="truncate text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50"
+          >
+            {{ user.username }}
+          </h2>
+          <p class="mt-0.5 text-sm text-neutral-400">{{ user.email }}</p>
+        </div>
+
+        <!-- 修改个人信息按钮 -->
+        <NButton type="primary" ghost @click="openEditModal">
+          <template #icon>
+            <svg
+              class="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+              <path d="m15 5 4 4" />
+            </svg>
+          </template>
+          {{ t('profile.editInfo') }}
+        </NButton>
       </div>
 
       <!-- 信息行 -->
       <div class="mt-6 space-y-3 border-t border-neutral-100 pt-6 dark:border-neutral-800">
-        <div class="flex items-center justify-between gap-4">
-          <span class="text-sm text-neutral-400">{{ t('profile.email') }}</span>
-          <span class="text-sm text-neutral-900 dark:text-neutral-100">{{ user.email }}</span>
-        </div>
         <div class="flex items-center justify-between gap-4">
           <span class="text-sm text-neutral-400">{{ t('profile.memberSince') }}</span>
           <span class="text-sm text-neutral-900 dark:text-neutral-100">
@@ -304,7 +472,6 @@ onMounted(() => {
             @click="router.push(stat.route)"
           >
             <div class="flex items-center gap-4">
-              <!-- 图标 -->
               <span
                 class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg"
                 :class="stat.iconBgClass"
@@ -322,8 +489,6 @@ onMounted(() => {
                   <path :d="stat.icon" />
                 </svg>
               </span>
-
-              <!-- 数字 + 标签 -->
               <div class="min-w-0">
                 <p
                   class="text-3xl font-bold tabular-nums text-neutral-900 dark:text-neutral-50"
@@ -346,6 +511,127 @@ onMounted(() => {
         {{ t('auth.logout') }}
       </NButton>
     </div>
+
+    <!-- 修改个人信息弹窗 -->
+    <NModal
+      v-model:show="showEditModal"
+      preset="card"
+      :title="t('profile.editInfo')"
+      style="width: 480px; max-width: 92vw"
+    >
+      <NTabs v-model:value="activeTab" type="line" animated>
+        <!-- 头像 -->
+        <NTabPane name="avatar" :tab="t('profile.tabAvatar')">
+          <div class="flex flex-col items-center gap-4 py-4">
+            <div class="relative">
+              <img
+                v-if="user?.avatar_url"
+                :src="user.avatar_url"
+                :alt="t('profile.avatar')"
+                class="h-24 w-24 rounded-full object-cover"
+              />
+              <div
+                v-else
+                class="flex h-24 w-24 items-center justify-center rounded-full bg-blue-100 text-3xl font-bold text-blue-600 dark:bg-blue-500/20 dark:text-blue-400"
+              >
+                {{ userInitial }}
+              </div>
+            </div>
+            <input
+              ref="fileInputRef"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              class="hidden"
+              @change="handleAvatarChange"
+            />
+            <NButton :loading="avatarUploading" @click="triggerAvatarUpload">
+              <template #icon>
+                <svg
+                  class="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+                  <path d="m18 8-1-1a2.828 2.828 0 1 0-4 4" />
+                  <circle cx="9" cy="8" r="2" />
+                  <path d="M3 3h18v18H3z" />
+                </svg>
+              </template>
+              {{ t('profile.chooseImage') }}
+            </NButton>
+            <p class="text-xs text-neutral-400">{{ t('profile.avatarHint') }}</p>
+          </div>
+        </NTabPane>
+
+        <!-- 用户名 -->
+        <NTabPane name="username" :tab="t('profile.tabUsername')">
+          <div class="space-y-4 py-4">
+            <NFormItem :label="t('profile.username')" path="username">
+              <NInput
+                v-model:value="username"
+                :maxlength="50"
+                :placeholder="t('profile.usernamePlaceholder')"
+              />
+            </NFormItem>
+            <NButton
+              type="primary"
+              :loading="usernameSaving"
+              @click="handleSaveUsername"
+            >
+              {{ t('profile.save') }}
+            </NButton>
+          </div>
+        </NTabPane>
+
+        <!-- 密码 -->
+        <NTabPane name="password" :tab="t('profile.tabPassword')">
+          <NForm
+            ref="passwordFormRef"
+            :model="passwordForm"
+            :rules="passwordRules"
+            label-placement="top"
+            :show-require-mark="false"
+            class="py-4"
+          >
+            <NFormItem :label="t('profile.oldPassword')" path="old_password">
+              <NInput
+                v-model:value="passwordForm.old_password"
+                type="password"
+                show-password-on="click"
+                :placeholder="t('profile.oldPasswordPlaceholder')"
+              />
+            </NFormItem>
+            <NFormItem :label="t('profile.newPassword')" path="new_password">
+              <NInput
+                v-model:value="passwordForm.new_password"
+                type="password"
+                show-password-on="click"
+                :placeholder="t('profile.newPasswordPlaceholder')"
+              />
+            </NFormItem>
+            <NFormItem :label="t('auth.confirmPassword')" path="confirm_password">
+              <NInput
+                v-model:value="passwordForm.confirm_password"
+                type="password"
+                show-password-on="click"
+                :placeholder="t('auth.confirmPasswordPlaceholder')"
+              />
+            </NFormItem>
+            <NButton
+              type="primary"
+              :loading="passwordSubmitting"
+              @click="handleChangePassword"
+            >
+              {{ t('profile.save') }}
+            </NButton>
+          </NForm>
+        </NTabPane>
+      </NTabs>
+    </NModal>
   </div>
 </template>
 

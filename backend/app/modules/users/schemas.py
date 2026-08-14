@@ -45,5 +45,16 @@ class UserUpdate(BaseModel):
     ``exclude_unset`` 仅应用提供的值。
     """
 
+    username: Optional[str] = Field(default=None, min_length=2, max_length=50)
     avatar_url: Optional[str] = None
     english_level: Optional[EnglishLevel] = None
+
+
+class PasswordUpdate(BaseModel):
+    """修改密码的载荷。
+
+    需提供旧密码用于验证，新密码长度 6-128 位。
+    """
+
+    old_password: str
+    new_password: str = Field(min_length=6, max_length=128)

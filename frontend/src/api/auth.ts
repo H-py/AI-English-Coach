@@ -5,7 +5,8 @@ import type {
   LoginPayload,
   TokenResponse,
   User,
-  UpdateUserPayload
+  UpdateUserPayload,
+  UpdatePasswordPayload
 } from '@/types/auth'
 
 /**
@@ -40,8 +41,20 @@ export const authApi = {
     return http.get('/users/me')
   },
 
-  /** 更新当前用户资料（头像 / 英语水平） */
+  /** 更新当前用户资料（用户名 / 头像 / 英语水平） */
   updateMe(data: UpdateUserPayload): Promise<User> {
     return http.put('/users/me', data)
+  },
+
+  /** 修改当前用户密码（需验证旧密码） */
+  updatePassword(data: UpdatePasswordPayload): Promise<void> {
+    return http.post('/users/me/password', data)
+  },
+
+  /** 上传并更新当前用户头像 */
+  uploadAvatar(file: File): Promise<User> {
+    const form = new FormData()
+    form.append('file', file)
+    return http.post('/users/me/avatar', form)
   }
 }

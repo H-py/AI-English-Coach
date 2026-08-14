@@ -48,6 +48,13 @@ export interface LoginPayload {
 
 /** 更新当前用户资料请求体（字段均可选） */
 export interface UpdateUserPayload {
+  username?: string
   avatar_url?: string
   english_level?: EnglishLevel
+}
+
+/** 修改密码请求体 */
+export interface UpdatePasswordPayload {
+  old_password: string
+  new_password: string
 }
