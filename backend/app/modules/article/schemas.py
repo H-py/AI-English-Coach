@@ -19,10 +19,11 @@ class ArticleBase(BaseModel):
 
     title: str = Field(min_length=1, max_length=500)
     content: str
-    difficulty: Difficulty = Difficulty.b1
+    difficulty: Difficulty = Difficulty.three
     source: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
     cover_url: Optional[str] = None
+    cet_type: Optional[str] = None
 
 
 class ArticleCreate(ArticleBase):
@@ -54,6 +55,7 @@ class ArticleUpdate(BaseModel):
     cover_url: Optional[str] = None
     tags: Optional[list[str]] = None
     is_published: Optional[bool] = None
+    cet_type: Optional[str] = None
 
 
 class ArticleOut(BaseModel):
@@ -71,6 +73,7 @@ class ArticleOut(BaseModel):
     summary: Optional[str] = None
     source: Optional[str] = None
     difficulty: Difficulty
+    cet_type: Optional[str] = None
     word_count: int
     reading_time: Optional[int] = None
     cover_url: Optional[str] = None
@@ -94,6 +97,7 @@ class ArticleListItem(BaseModel):
     title: str
     summary: Optional[str] = None
     difficulty: Difficulty
+    cet_type: Optional[str] = None
     word_count: int
     reading_time: Optional[int] = None
     cover_url: Optional[str] = None
@@ -137,6 +141,7 @@ class ArticleQueryParams(BaseModel):
     """
 
     difficulty: Optional[Difficulty] = None
+    cet_type: Optional[str] = None
     tag: Optional[str] = None
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)

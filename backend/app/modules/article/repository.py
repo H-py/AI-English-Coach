@@ -72,6 +72,7 @@ async def get_article_neighbors(
 async def list_articles(
     db: AsyncSession,
     difficulty: Optional[Difficulty] = None,
+    cet_type: Optional[str] = None,
     tag: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
@@ -83,7 +84,8 @@ async def list_articles(
 
     Args:
         db: 当前活跃的异步会话。
-        difficulty: 可选的 CEFR 难度等级筛选条件。
+        difficulty: 可选的难度星级筛选条件（1-5 星）。
+        cet_type: 可选的四六级真题筛选条件（``'cet4'`` / ``'cet6'``）。
         tag: 可选的标签字符串筛选条件（筛选 ``tags`` JSON 数组中
             包含该标签的文章）。
         page: 从 1 开始的页码。
@@ -98,6 +100,9 @@ async def list_articles(
 
     if difficulty is not None:
         conditions.append(Article.difficulty == difficulty)
+
+    if cet_type is not None:
+        conditions.append(Article.cet_type == cet_type)
 
     if tag is not None:
         # 将 JSON 列转换为 JSONB 并使用包含操作符（``@>``）来判断
@@ -150,6 +155,7 @@ async def create_article(
         summary=data.summary,
         source=data.source,
         difficulty=data.difficulty,
+        cet_type=data.cet_type,
         word_count=word_count,
         reading_time=data.reading_time,
         cover_url=data.cover_url,
@@ -189,6 +195,7 @@ async def list_all_articles(
     db: AsyncSession,
     search: Optional[str] = None,
     difficulty: Optional[Difficulty] = None,
+    cet_type: Optional[str] = None,
     tag: Optional[str] = None,
     is_published: Optional[bool] = None,
     page: int = 1,
@@ -203,7 +210,8 @@ async def list_all_articles(
     Args:
         db: 当前活跃的异步会话。
         search: 可选的不区分大小写子串，用于匹配标题。
-        difficulty: 可选的 CEFR 难度等级筛选条件。
+        difficulty: 可选的难度星级筛选条件（1-5 星）。
+        cet_type: 可选的四六级真题筛选条件（``'cet4'`` / ``'cet6'``）。
         tag: 可选的标签字符串筛选条件（筛选 ``tags`` JSON 数组中
             包含该标签的文章）。
         is_published: 可选的发布状态筛选标志。
@@ -221,6 +229,9 @@ async def list_all_articles(
 
     if difficulty is not None:
         conditions.append(Article.difficulty == difficulty)
+
+    if cet_type is not None:
+        conditions.append(Article.cet_type == cet_type)
 
     if tag is not None:
         conditions.append(

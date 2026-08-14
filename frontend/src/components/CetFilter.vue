@@ -1,37 +1,35 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { useArticle } from '@/composables/useArticle'
-import type { Difficulty } from '@/types/article'
+import type { CetType } from '@/types/article'
 
 /**
- * 难度筛选器（1-5 星）。
+ * 四六级真题筛选器。
  *
- * 用按钮组展示「全部」+ 5 个星级，选中态高亮。
+ * 用按钮组展示「全部」+ 四级 + 六级，选中态高亮。
  * 通过 v-model（modelValue / update:modelValue）与父级双向绑定。
- * 极简风格：选中项用中性深色填充，未选项为描边幽灵态。
+ * 样式与 DifficultyFilter 保持一致（filter-btn）。
  */
 const props = defineProps<{
-  modelValue: Difficulty | undefined
+  modelValue: CetType | undefined
 }>()
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: Difficulty | undefined): void
+  (e: 'update:modelValue', value: CetType | undefined): void
 }>()
 
 const { t } = useI18n()
-const { difficultyLabel } = useArticle()
 
-// 全部难度星级，固定顺序 1-5
-const difficulties: Difficulty[] = ['1', '2', '3', '4', '5']
+// 四六级类型，固定顺序
+const cetTypes: CetType[] = ['cet4', 'cet6']
 
 /** 点击「全部」：清空筛选 */
 function selectAll(): void {
   emit('update:modelValue', undefined)
 }
 
-/** 点击具体星级 */
-function selectDifficulty(d: Difficulty): void {
-  emit('update:modelValue', d)
+/** 点击具体类型 */
+function selectCet(c: CetType): void {
+  emit('update:modelValue', c)
 }
 </script>
 
@@ -44,19 +42,19 @@ function selectDifficulty(d: Difficulty): void {
       :class="{ active: modelValue === undefined }"
       @click="selectAll"
     >
-      {{ t('article.allDifficulties') }}
+      {{ t('article.cet.all') }}
     </button>
 
-    <!-- 各星级 -->
+    <!-- 四级 / 六级 -->
     <button
-      v-for="d in difficulties"
-      :key="d"
+      v-for="c in cetTypes"
+      :key="c"
       type="button"
       class="filter-btn"
-      :class="{ active: modelValue === d }"
-      @click="selectDifficulty(d)"
+      :class="{ active: modelValue === c }"
+      @click="selectCet(c)"
     >
-      {{ difficultyLabel(d) }}
+      {{ t(`article.cet.${c}`) }}
     </button>
   </div>
 </template>

@@ -38,13 +38,18 @@ async def list_articles_endpoint(
     db: DbSession,
     current_user: CurrentUser,
     difficulty: Optional[Difficulty] = Query(default=None),
+    cet_type: Optional[str] = Query(default=None),
     tag: Optional[str] = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> dict:
     """列出已发布文章，支持可选的筛选与分页。"""
     params = ArticleQueryParams(
-        difficulty=difficulty, tag=tag, page=page, page_size=page_size
+        difficulty=difficulty,
+        cet_type=cet_type,
+        tag=tag,
+        page=page,
+        page_size=page_size,
     )
     result = await get_article_list(db, params)
     return success(result)

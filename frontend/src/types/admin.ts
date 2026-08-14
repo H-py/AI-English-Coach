@@ -4,7 +4,7 @@
  * 与后端 `/api/v1/admin/*` 系列接口一一对应。
  */
 
-import type { Difficulty } from './article'
+import type { CetType, Difficulty } from './article'
 import type { EnglishLevel, UserRole } from './auth'
 
 /** 管理后台文章列表项（含 is_published / view_count / updated_at） */
@@ -13,6 +13,7 @@ export interface AdminArticleListItem {
   title: string
   summary: string | null
   difficulty: Difficulty
+  cet_type: CetType | null
   word_count: number
   reading_time: number | null
   cover_url: string | null
@@ -35,6 +36,7 @@ export interface AdminArticleListResponse {
 export interface AdminArticleQuery {
   search?: string
   difficulty?: Difficulty
+  cet_type?: CetType
   tag?: string
   is_published?: boolean
   page?: number
@@ -46,6 +48,7 @@ export interface AdminArticleCreatePayload {
   title: string
   content: string
   difficulty: Difficulty
+  cet_type?: CetType | null
   source?: string
   tags?: string[]
   cover_url?: string
@@ -59,6 +62,7 @@ export interface AdminArticleUpdatePayload {
   title?: string
   content?: string
   difficulty?: Difficulty
+  cet_type?: CetType | null
   source?: string
   tags?: string[]
   cover_url?: string

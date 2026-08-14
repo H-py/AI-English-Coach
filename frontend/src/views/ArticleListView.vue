@@ -4,14 +4,15 @@ import { useI18n } from 'vue-i18n'
 import { NPagination, NSpin, NEmpty } from 'naive-ui'
 import ArticleCard from '@/components/ArticleCard.vue'
 import DifficultyFilter from '@/components/DifficultyFilter.vue'
+import CetFilter from '@/components/CetFilter.vue'
 import { useArticle } from '@/composables/useArticle'
-import type { Difficulty } from '@/types/article'
+import type { CetType, Difficulty } from '@/types/article'
 
 /**
  * 文章列表页。
  *
- * 结构：页面标题 + 难度筛选 -> 文章卡片网格（响应式 1-2-3 列） -> 分页。
- * 筛选（难度）变化时重置到第 1 页并重新加载。
+ * 结构：页面标题 + 难度星级筛选 + 四六级真题筛选 -> 文章卡片网格（响应式
+ * 1-2-3 列） -> 分页。筛选（星级 / 四六级）变化时重置到第 1 页并重新加载。
  * loading 用 NSpin，空数据用 NEmpty。
  */
 const { t } = useI18n()
@@ -19,6 +20,7 @@ const { store, loading, loadArticles } = useArticle()
 
 // 筛选与分页状态
 const difficulty = ref<Difficulty | undefined>(undefined)
+const cetType = ref<CetType | undefined>(undefined)
 const page = ref(1)
 const pageSize = ref(12)
 
@@ -30,13 +32,14 @@ const total = computed(() => store.total)
 async function fetchList(): Promise<void> {
   await loadArticles({
     difficulty: difficulty.value,
+    cet_type: cetType.value,
     page: page.value,
     page_size: pageSize.value
   })
 }
 
-/** 难度变化：重置到第 1 页并重新加载 */
-watch(difficulty, () => {
+/** 星级 / 四六级变化：重置到第 1 页并重新加载 */
+watch([difficulty, cetType], () => {
   page.value = 1
   fetchList()
 })
@@ -62,8 +65,11 @@ onMounted(fetchList)
       </p>
     </header>
 
-    <!-- 难度筛选 -->
-    <DifficultyFilter v-model="difficulty" />
+    <!-- 筛选：难度星级 + 四六级真题 -->
+    <div class="space-y-3">
+      <DifficultyFilter v-model="difficulty" />
+      <CetFilter v-model="cetType" />
+    </div>
 
     <!-- 列表区 -->
     <div class="min-h-[300px]">

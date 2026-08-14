@@ -16,17 +16,19 @@ import {
 } from 'naive-ui'
 import type { DataTableColumns, SelectOption } from 'naive-ui'
 import { adminApi } from '@/api/admin'
+import StarRating from '@/components/StarRating.vue'
 import type { AdminArticleListItem, AdminArticleQuery } from '@/types/admin'
-import type { Difficulty } from '@/types/article'
+import type { CetType, Difficulty } from '@/types/article'
 
 /**
  * 文章管理列表页（管理后台）。
  *
  * 功能：
  *  - 按标题搜索（防抖 400ms）
- *  - 按难度（a1-c2 / 全部）筛选
+ *  - 按难度（1-5 星 / 全部）筛选
+ *  - 按四六级真题（全部 / 四级 / 六级）筛选
  *  - 按发布状态（全部 / 已发布 / 草稿）筛选
- *  - 表格列：标题 / 难度(tag) / 标签 / 状态(tag) / 浏览量 / 词数 / 创建时间 / 操作(编辑/删除)
+ *  - 表格列：标题 / 难度(星级) / 四六级 / 标签 / 状态(tag) / 浏览量 / 词数 / 创建时间 / 操作(编辑/删除)
  *  - 新建文章 -> /admin/articles/new
  *  - 编辑 -> /admin/articles/{id}/edit
  *  - 删除：Popconfirm 确认后调用 adminApi.deleteArticle，成功提示并刷新列表
@@ -52,17 +54,25 @@ const pageSize = ref(10)
 const searchQuery = ref('')
 // 使用字符串哨兵 'all' 便于 NSelect 绑定，查询时再映射为 undefined
 const difficultyFilter = ref<string>('all')
+const cetTypeFilter = ref<string>('all')
 const statusFilter = ref<string>('all')
 
 const pageSizeOptions = [10, 20, 50]
 
-/** 难度筛选下拉选项（全部 + a1-c2） */
+/** 难度筛选下拉选项（全部 + 1-5 星） */
 const difficultyOptions = computed<SelectOption[]>(() => [
   { label: t('article.allDifficulties'), value: 'all' },
-  ...(['a1', 'a2', 'b1', 'b2', 'c1', 'c2'] as Difficulty[]).map((d) => ({
+  ...(['1', '2', '3', '4', '5'] as Difficulty[]).map((d) => ({
     label: t(`article.difficulty.${d}`),
     value: d
   }))
+])
+
+/** 四六级真题筛选下拉选项（全部 / 四级 / 六级） */
+const cetTypeOptions = computed<SelectOption[]>(() => [
+  { label: t('article.cet.all'), value: 'all' },
+  { label: t('article.cet.cet4'), value: 'cet4' },
+  { label: t('article.cet.cet6'), value: 'cet6' }
 ])
 
 /** 发布状态下拉选项（全部 / 已发布 / 草稿） */
@@ -72,19 +82,14 @@ const statusOptions = computed<SelectOption[]>(() => [
   { label: t('admin.article.draft'), value: 'draft' }
 ])
 
-/** 难度 -> NTag type 映射：入门/初级=绿，中级=蓝，高级=琥珀 */
-const difficultyTagType: Record<Difficulty, 'success' | 'info' | 'warning'> = {
-  a1: 'success',
-  a2: 'success',
-  b1: 'info',
-  b2: 'info',
-  c1: 'warning',
-  c2: 'warning'
-}
-
 /** 查询参数中的 difficulty（'all' 时不传，由后端返回全部） */
 const difficultyParam = computed<Difficulty | undefined>(() =>
   difficultyFilter.value === 'all' ? undefined : (difficultyFilter.value as Difficulty)
+)
+
+/** 查询参数中的 cet_type（'all' 时不传） */
+const cetTypeParam = computed<CetType | undefined>(() =>
+  cetTypeFilter.value === 'all' ? undefined : (cetTypeFilter.value as CetType)
 )
 
 /** 查询参数中的 is_published（'all' 时不传） */
@@ -106,6 +111,7 @@ async function fetchArticles(): Promise<void> {
       page_size: pageSize.value,
       search: searchQuery.value.trim() || undefined,
       difficulty: difficultyParam.value,
+      cet_type: cetTypeParam.value,
       is_published: isPublishedParam.value
     }
     const res = await adminApi.listArticles(params)
@@ -126,8 +132,8 @@ const debouncedSearch = useDebounceFn(() => {
 
 watch(searchQuery, () => debouncedSearch())
 
-/** 难度 / 状态筛选变化：重置到第 1 页并重新加载 */
-watch([difficultyFilter, statusFilter], () => {
+/** 难度 / 四六级 / 状态筛选变化：重置到第 1 页并重新加载 */
+watch([difficultyFilter, cetTypeFilter, statusFilter], () => {
   page.value = 1
   fetchArticles()
 })
@@ -148,6 +154,11 @@ function handlePageSizeChange(ps: number): void {
 /** 难度下拉选中（NSelect 不使用 v-model 以避免 string|number 类型摩擦） */
 function handleDifficultyChange(v: string | number | null): void {
   difficultyFilter.value = v == null ? 'all' : String(v)
+}
+
+/** 四六级下拉选中 */
+function handleCetTypeChange(v: string | number | null): void {
+  cetTypeFilter.value = v == null ? 'all' : String(v)
 }
 
 /** 状态下拉选中 */
@@ -216,18 +227,21 @@ const columns = computed<DataTableColumns<AdminArticleListItem>>(() => [
   {
     title: t('admin.article.fields.difficulty'),
     key: 'difficulty',
-    width: 150,
+    width: 130,
+    render: (row) => h(StarRating, { stars: Number(row.difficulty) })
+  },
+  {
+    title: t('admin.article.fields.cetType'),
+    key: 'cet_type',
+    width: 100,
     render: (row) =>
-      h(
-        NTag,
-        {
-          type: difficultyTagType[row.difficulty],
-          size: 'small',
-          bordered: false,
-          round: true
-        },
-        { default: () => t(`article.difficulty.${row.difficulty}`) }
-      )
+      row.cet_type
+        ? h(
+            NTag,
+            { size: 'small', bordered: false, type: 'warning' },
+            { default: () => t(`article.cet.${row.cet_type}`) }
+          )
+        : h('span', { class: 'text-neutral-400 dark:text-neutral-600' }, '—')
   },
   {
     title: t('admin.article.fields.tags'),
@@ -384,6 +398,13 @@ onMounted(fetchArticles)
           :options="difficultyOptions"
           class="w-44"
           @update:value="handleDifficultyChange"
+        />
+
+        <NSelect
+          :value="cetTypeFilter"
+          :options="cetTypeOptions"
+          class="w-32"
+          @update:value="handleCetTypeChange"
         />
 
         <NSelect

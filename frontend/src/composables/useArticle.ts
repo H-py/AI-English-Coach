@@ -1,14 +1,14 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useArticleStore } from '@/stores/article'
-import type { ArticleQuery, Difficulty } from '@/types/article'
+import type { ArticleQuery, CetType, Difficulty } from '@/types/article'
 
 /**
  * 文章模块通用 composable。
  *
  * 在 article store 之上封装页面层常用操作：
  *  - 带本地 loading 状态的数据加载（列表 / 详情 / 标签）；
- *  - 难度等级的本地化标签与配色映射，供卡片、筛选器等复用。
+ *  - 难度星级与四六级真题的本地化标签，供筛选器等复用。
  *
  * 错误提示由 axios 响应拦截器统一处理；加载失败时 loading 会恢复，
  * 调用方可自行 catch 以做额外的 UI 处理。
@@ -45,35 +45,14 @@ export function useArticle() {
     await store.fetchTags()
   }
 
-  /** 返回难度等级的本地化标签，如 "A1 入门" */
+  /** 返回难度星级的本地化标签，如 "1星" */
   function difficultyLabel(d: Difficulty): string {
     return t(`article.difficulty.${d}`)
   }
 
-  /**
-   * 返回难度等级对应的 NTag 配色（低饱和度，符合极简风格）。
-   * a1/a2 绿色系、b1/b2 蓝色系、c1/c2 紫色系。
-   *
-   * 返回结构直接适配 Naive UI NTag 的 color prop：
-   *  - color：柔和浅色背景
-   *  - textColor：主色调文字
-   *  - borderColor：浅色描边
-   */
-  function difficultyColor(
-    d: Difficulty
-  ): { color: string; textColor: string; borderColor: string } {
-    const palette: Record<
-      Difficulty,
-      { color: string; textColor: string; borderColor: string }
-    > = {
-      a1: { color: '#f0fdf4', textColor: '#15803d', borderColor: '#bbf7d0' },
-      a2: { color: '#f0fdf4', textColor: '#166534', borderColor: '#bbf7d0' },
-      b1: { color: '#eff6ff', textColor: '#1d4ed8', borderColor: '#bfdbfe' },
-      b2: { color: '#eff6ff', textColor: '#1e40af', borderColor: '#bfdbfe' },
-      c1: { color: '#f5f3ff', textColor: '#6d28d9', borderColor: '#ddd6fe' },
-      c2: { color: '#f5f3ff', textColor: '#5b21b6', borderColor: '#ddd6fe' }
-    }
-    return palette[d]
+  /** 返回四六级真题类型的本地化标签，如 "四级" */
+  function cetLabel(c: CetType): string {
+    return t(`article.cet.${c}`)
   }
 
   return {
@@ -87,6 +66,6 @@ export function useArticle() {
     loadTags,
     // helpers
     difficultyLabel,
-    difficultyColor
+    cetLabel
   }
 }

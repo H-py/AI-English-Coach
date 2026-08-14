@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { NTag, NSpin, NEmpty } from 'naive-ui'
+import StarRating from '@/components/StarRating.vue'
 import { articleApi } from '@/api/article'
 import type { ArticleNeighbors } from '@/types/article'
 import { useArticle } from '@/composables/useArticle'
@@ -33,7 +34,7 @@ import AiPanel from '@/components/reading/AiPanel.vue'
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
-const { store, loading, loadArticleDetail, difficultyLabel, difficultyColor } = useArticle()
+const { store, loading, loadArticleDetail, cetLabel } = useArticle()
 const { startReadingSession, endReadingSession } = useReading()
 
 /** 返回上一页，若无历史则回文章库 */
@@ -109,12 +110,6 @@ function sliderFillStyle(): Record<string, string> {
 
 /** 文章正文按段落 + 句子拆分（供逐句渲染与朗读高亮） */
 const contentLines = computed(() => splitContent(article.value?.content ?? ''))
-
-// 难度配色
-const difficultyStyle = computed(() => {
-  if (!article.value) return { color: '', textColor: '', borderColor: '' }
-  return difficultyColor(article.value.difficulty)
-})
 
 // ============================================================
 //  文本选区
@@ -610,15 +605,17 @@ onUnmounted(async () => {
               </div>
             </div>
 
-            <!-- 元信息：难度 / 来源 / 词数 / 阅读时间 -->
+            <!-- 元信息：难度星级 / 四六级 / 来源 / 词数 / 阅读时间 -->
             <div class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-neutral-500 dark:text-neutral-400">
+              <StarRating :stars="Number(article.difficulty)" />
+
               <NTag
+                v-if="article.cet_type"
                 size="small"
-                round
-                :bordered="true"
-                :color="difficultyStyle"
+                :bordered="false"
+                type="warning"
               >
-                {{ difficultyLabel(article.difficulty) }}
+                {{ cetLabel(article.cet_type) }}
               </NTag>
 
               <span v-if="article.source">

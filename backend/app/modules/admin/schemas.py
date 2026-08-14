@@ -49,6 +49,7 @@ class AdminArticleQueryParams(BaseModel):
 
     search: Optional[str] = None
     difficulty: Optional[Difficulty] = None
+    cet_type: Optional[str] = None
     tag: Optional[str] = None
     is_published: Optional[bool] = None
     page: int = Field(default=1, ge=1)

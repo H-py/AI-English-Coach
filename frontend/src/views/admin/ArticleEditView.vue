@@ -18,7 +18,7 @@ import {
 } from 'naive-ui'
 import { adminApi } from '@/api/admin'
 import type { AdminArticleCreatePayload, AdminArticleUpdatePayload } from '@/types/admin'
-import type { Article, Difficulty } from '@/types/article'
+import type { Article, CetType, Difficulty } from '@/types/article'
 
 /**
  * 文章编辑 / 创建页（管理后台）。
@@ -63,6 +63,7 @@ interface ArticleFormModel {
   summary: string
   source: string
   difficulty: Difficulty
+  cet_type: string
   tags: string[]
   reading_time: number | null
   cover_url: string
@@ -74,7 +75,8 @@ const model = reactive<ArticleFormModel>({
   content: '',
   summary: '',
   source: '',
-  difficulty: 'b1',
+  difficulty: '3',
+  cet_type: '',
   tags: [],
   reading_time: null,
   cover_url: '',
@@ -87,14 +89,20 @@ const saving = ref(false)
 /** 编辑模式下初次拉取文章 loading */
 const fetching = ref(false)
 
-/** 难度选项：CEFR A1–C2，文案随语言切换 */
+/** 难度选项：1-5 星，文案随语言切换 */
 const difficultyOptions = computed<Array<{ label: string; value: Difficulty }>>(() => [
-  { label: t('article.difficulty.a1'), value: 'a1' },
-  { label: t('article.difficulty.a2'), value: 'a2' },
-  { label: t('article.difficulty.b1'), value: 'b1' },
-  { label: t('article.difficulty.b2'), value: 'b2' },
-  { label: t('article.difficulty.c1'), value: 'c1' },
-  { label: t('article.difficulty.c2'), value: 'c2' }
+  { label: t('article.difficulty.1'), value: '1' },
+  { label: t('article.difficulty.2'), value: '2' },
+  { label: t('article.difficulty.3'), value: '3' },
+  { label: t('article.difficulty.4'), value: '4' },
+  { label: t('article.difficulty.5'), value: '5' }
+])
+
+/** 四六级真题选项：空 = 非真题 */
+const cetTypeOptions = computed<Array<{ label: string; value: string }>>(() => [
+  { label: t('article.cet.none'), value: '' },
+  { label: t('article.cet.cet4'), value: 'cet4' },
+  { label: t('article.cet.cet6'), value: 'cet6' }
 ])
 
 /** 正文词数：按空白拆分自动统计 */
@@ -138,6 +146,7 @@ async function fetchArticle(): Promise<void> {
     model.summary = article.summary ?? ''
     model.source = article.source ?? ''
     model.difficulty = article.difficulty
+    model.cet_type = article.cet_type ?? ''
     model.tags = article.tags ?? []
     model.reading_time = article.reading_time
     model.cover_url = article.cover_url ?? ''
@@ -162,6 +171,7 @@ function buildPayload(): AdminArticleCreatePayload {
     title: model.title,
     content: model.content,
     difficulty: model.difficulty,
+    cet_type: model.cet_type === '' ? null : (model.cet_type as CetType),
     summary: model.summary || undefined,
     source: model.source || undefined,
     tags: model.tags.length ? model.tags : undefined,
@@ -271,12 +281,18 @@ onMounted(() => {
             />
           </NFormItem>
 
-          <!-- 难度 + 阅读时长（双列） -->
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <!-- 难度 + 四六级 + 阅读时长（三列） -->
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <NFormItem :label="t('admin.article.fields.difficulty')" path="difficulty">
               <NSelect
                 v-model:value="model.difficulty"
                 :options="difficultyOptions"
+              />
+            </NFormItem>
+            <NFormItem :label="t('admin.article.fields.cetType')" path="cet_type">
+              <NSelect
+                v-model:value="model.cet_type"
+                :options="cetTypeOptions"
               />
             </NFormItem>
             <NFormItem :label="t('admin.article.fields.readingTime')" path="reading_time">

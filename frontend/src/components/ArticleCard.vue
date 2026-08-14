@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { NTag } from 'naive-ui'
+import StarRating from '@/components/StarRating.vue'
 import { useArticle } from '@/composables/useArticle'
 import type { ArticleListItem } from '@/types/article'
 
@@ -10,7 +11,8 @@ import type { ArticleListItem } from '@/types/article'
  * 文章卡片。
  *
  * 极简风格：白底圆角细边框，hover 微阴影。点击卡片整体跳转详情页。
- * 展示：标题、摘要（2 行截断）、难度标签、词数、阅读时间、标签。
+ * 展示：难度星级（五颗星）、四六级真题标签、标题、摘要（2 行截断）、
+ * 词数、阅读时间、标签。
  */
 const props = defineProps<{
   article: ArticleListItem
@@ -18,10 +20,10 @@ const props = defineProps<{
 
 const router = useRouter()
 const { t } = useI18n()
-const { difficultyLabel, difficultyColor } = useArticle()
+const { cetLabel } = useArticle()
 
-// 难度配色（直接适配 NTag color prop）
-const difficultyStyle = computed(() => difficultyColor(props.article.difficulty))
+// 难度星级（字符串转数字，供 StarRating 使用）
+const difficultyStars = computed(() => Number(props.article.difficulty))
 
 // 标签最多展示 3 个，避免卡片过高
 const visibleTags = computed(() => props.article.tags.slice(0, 3))
@@ -36,15 +38,16 @@ function goDetail(): void {
     class="article-card group flex cursor-pointer flex-col rounded-xl border border-neutral-200 bg-white p-5 transition-all duration-200 dark:border-neutral-800 dark:bg-neutral-900"
     @click="goDetail"
   >
-    <!-- 难度标签 -->
-    <div class="mb-3">
+    <!-- 难度星级 + 四六级标签 -->
+    <div class="mb-3 flex items-center gap-2">
+      <StarRating :stars="difficultyStars" />
       <NTag
-        size="small"
-        round
-        :bordered="true"
-        :color="difficultyStyle"
+        v-if="article.cet_type"
+        size="tiny"
+        :bordered="false"
+        type="warning"
       >
-        {{ difficultyLabel(article.difficulty) }}
+        {{ cetLabel(article.cet_type) }}
       </NTag>
     </div>
 

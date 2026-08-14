@@ -63,6 +63,7 @@ async def admin_list_articles(
         db,
         search=params.search,
         difficulty=params.difficulty,
+        cet_type=params.cet_type,
         tag=params.tag,
         is_published=params.is_published,
         page=params.page,

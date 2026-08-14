@@ -61,9 +61,9 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # ---- 管理员（用于初始化脚本的初始管理员账号）----
-    ADMIN_EMAIL: str = "admin@example.com"
-    ADMIN_USERNAME: str = "admin"
-    ADMIN_PASSWORD: str = "admin123456"
+    ADMIN_EMAIL: str = ""
+    ADMIN_USERNAME: str = ""
+    ADMIN_PASSWORD: str = ""
 
     # ---- CORS ----
     # 接受环境变量中以逗号分隔的来源列表。

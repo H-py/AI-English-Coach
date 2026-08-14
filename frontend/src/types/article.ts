@@ -6,8 +6,11 @@
  * 前端不做额外的 camelCase 转换。
  */
 
-/** CEFR 难度等级 */
-export type Difficulty = 'a1' | 'a2' | 'b1' | 'b2' | 'c1' | 'c2'
+/** 难度星级（1-5 星） */
+export type Difficulty = '1' | '2' | '3' | '4' | '5'
+
+/** 四六级真题类型 */
+export type CetType = 'cet4' | 'cet6'
 
 /** 文章完整对象（详情接口返回） */
 export interface Article {
@@ -17,6 +20,7 @@ export interface Article {
   summary: string | null
   source: string | null
   difficulty: Difficulty
+  cet_type: CetType | null
   word_count: number
   reading_time: number | null
   cover_url: string | null
@@ -33,6 +37,7 @@ export interface ArticleListItem {
   title: string
   summary: string | null
   difficulty: Difficulty
+  cet_type: CetType | null
   word_count: number
   reading_time: number | null
   cover_url: string | null
@@ -51,6 +56,7 @@ export interface ArticleListResponse {
 /** 文章列表查询参数 */
 export interface ArticleQuery {
   difficulty?: Difficulty
+  cet_type?: CetType
   tag?: string
   page?: number
   page_size?: number
@@ -73,6 +79,7 @@ export interface ArticleCreatePayload {
   title: string
   content: string
   difficulty: Difficulty
+  cet_type?: CetType | null
   source?: string
   tags?: string[]
   cover_url?: string
@@ -85,6 +92,7 @@ export interface ArticleUpdatePayload {
   title?: string
   content?: string
   difficulty?: Difficulty
+  cet_type?: CetType | null
   source?: string
   tags?: string[]
   cover_url?: string

@@ -52,12 +52,17 @@
     "speed": "Speed",
     "progress": "Reading progress",
     "difficulty": {
-      "a1": "A1 Beginner",
-      "a2": "A2 Elementary",
-      "b1": "B1 Intermediate",
-      "b2": "B2 Upper-Intermediate",
-      "c1": "C1 Advanced",
-      "c2": "C2 Proficient"
+      "1": "1 star",
+      "2": "2 stars",
+      "3": "3 stars",
+      "4": "4 stars",
+      "5": "5 stars"
+    },
+    "cet": {
+      "all": "All",
+      "none": "None",
+      "cet4": "CET-4",
+      "cet6": "CET-6"
     }
   },
   "home": {
@@ -343,6 +348,7 @@
         "summary": "Summary",
         "source": "Source",
         "difficulty": "Difficulty",
+        "cetType": "CET",
         "tags": "Tags",
         "readingTime": "Reading time (min)",
         "coverUrl": "Cover image URL",

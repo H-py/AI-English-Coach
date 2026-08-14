@@ -61,6 +61,7 @@ async def get_article_list(
     items, total = await repo_list_articles(
         db,
         difficulty=params.difficulty,
+        cet_type=params.cet_type,
         tag=params.tag,
         page=params.page,
         page_size=params.page_size,

@@ -74,6 +74,7 @@ async def list_articles_endpoint(
     _: AdminUser,
     search: Optional[str] = Query(default=None),
     difficulty: Optional[Difficulty] = Query(default=None),
+    cet_type: Optional[str] = Query(default=None),
     tag: Optional[str] = Query(default=None),
     is_published: Optional[bool] = Query(default=None),
     page: int = Query(default=1, ge=1),
@@ -83,6 +84,7 @@ async def list_articles_endpoint(
     params = AdminArticleQueryParams(
         search=search,
         difficulty=difficulty,
+        cet_type=cet_type,
         tag=tag,
         is_published=is_published,
         page=page,

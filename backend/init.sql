@@ -98,11 +98,11 @@ CREATE TRIGGER trg_users_updated_at
 -- 4. 枚举类型：difficulty
 -- ------------------------------------------------------------
 -- 对应 backend/app/modules/article/models.py 中的 Difficulty 枚举
--- CEFR 标准等级：a1/a2/b1/b2/c1/c2
+-- 难度以 1-5 星表示，星级越高阅读难度越大
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'difficulty') THEN
-        CREATE TYPE difficulty AS ENUM ('a1', 'a2', 'b1', 'b2', 'c1', 'c2');
+        CREATE TYPE difficulty AS ENUM ('1', '2', '3', '4', '5');
     END IF;
 END$$;
 
@@ -116,7 +116,8 @@ CREATE TABLE IF NOT EXISTS articles (
     content         TEXT         NOT NULL,
     summary         TEXT,
     source          VARCHAR(255),
-    difficulty      difficulty   NOT NULL DEFAULT 'b1',
+    difficulty      difficulty   NOT NULL DEFAULT '3',
+    cet_type        VARCHAR(20),
     word_count      INTEGER      NOT NULL DEFAULT 0,
     reading_time    INTEGER,
     cover_url       VARCHAR(512),
@@ -155,7 +156,7 @@ Research suggests that slow reading improves comprehension, retention, and even 
 Try this: the next time you open an article, set a timer for twenty minutes and read only half as much as you normally would. Notice what you gain — the details, the nuances, the pleasure of the words themselves. Reading slowly is not about doing less. It is about experiencing more.',
     'An essay on the benefits of reading at a slower pace, arguing that it improves comprehension, retention, and empathy.',
     'Reading Quarterly',
-    'b1',
+    '1',
     185,
     2,
     '["reading", "habits", "essay"]',
@@ -172,7 +173,7 @@ Navigation is one of the most fascinating aspects of bird migration. Birds use m
 Climate change is disrupting these ancient patterns. Rising temperatures cause plants to bloom earlier and insects to emerge sooner, creating a mismatch between migrants'' arrival times and the availability of their food sources. Scientists are tracking these changes using GPS tags and satellite data, building a clearer picture of how migration is shifting in response to a warming world.',
     'An exploration of bird migration patterns, navigation methods, and the impact of climate change.',
     'Nature Today',
-    'b2',
+    '1',
     240,
     3,
     '["science", "nature", "animals"]',
@@ -191,7 +192,7 @@ Breaking a bad habit reverses the process: make the cue invisible, the routine d
 Consistency matters more than intensity. Missing a day is fine, but never miss two in a row. The brain learns from patterns, not exceptions.',
     'A guide to understanding and applying the psychology of habit formation in daily life.',
     'Mind Weekly',
-    'b2',
+    '1',
     275,
     3,
     '["psychology", "self-improvement", "habits"]',
@@ -218,7 +219,7 @@ While there are very serious concerns about how young people will learn how to d
 Scrutinising the past is a useful way to clarify the bits of work we want to keep and which to ditch — but only if we are honest with ourselves.',
     '为什么AI时代，越来越多人想回到从前？',
     '金融时报',
-    'c1',
+    '1',
     749,
     4,
     '["AI"]',
