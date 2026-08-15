@@ -83,6 +83,21 @@ def cache_key(
     return f"ai:cache:{endpoint}:{level}:{_hash_input(*parts)}"
 
 
+# 个性化文章推荐缓存 TTL：1 小时（首页每次刷新都重新生成 LLM 成本太高）。
+RECOMMENDATION_CACHE_TTL = 3600
+
+
+def recommendation_cache_key(
+    user_id: int, level: str, profile_ts: str
+) -> str:
+    """为个性化文章推荐构建 Redis 缓存键。
+
+    键包含用户 id、英语水平与画像更新时间戳，因此水平变更或画像刷新会
+    自动使旧缓存失效，无需显式删除。
+    """
+    return f"ai:recommendations:{user_id}:{level}:{profile_ts}"
+
+
 async def get_cached_response(
     redis: aioredis.Redis, key: str
 ) -> Optional[str]:

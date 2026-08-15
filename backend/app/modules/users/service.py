@@ -32,7 +32,7 @@ _ALLOWED_AVATAR_TYPES = {
     "image/webp": "webp",
     "image/gif": "gif",
 }
-_MAX_AVATAR_SIZE = 50 * 1024 * 1024  # 5MB
+_MAX_AVATAR_SIZE = 50 * 1024 * 1024  # 50MB
 
 
 async def get_user_profile(db: AsyncSession, user_id: int) -> UserOut:

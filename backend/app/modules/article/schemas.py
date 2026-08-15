@@ -7,7 +7,7 @@ Pydantic v2 风格，使用 ``model_config`` / ``ConfigDict``。
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -112,6 +112,28 @@ class ArticleListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class RecommendationTier(BaseModel):
+    """单个推荐档位：文章列表 + 可选的理由提示。"""
+
+    items: list[ArticleListItem]
+    reason: Optional[str] = None
+
+
+class ArticleRecommendationsOut(BaseModel):
+    """个性化文章推荐响应。
+
+    ``easy`` = 适合快速学习；``matched`` = 适合学习；``challenging`` =
+    适合挑战学习。``generated_by`` 标记来源：``agent`` 表示由 LLM 生成，
+    ``rule`` 表示 LLM 失败后的规则回退。
+    """
+
+    easy: RecommendationTier
+    matched: RecommendationTier
+    challenging: RecommendationTier
+    generated_by: Literal["agent", "rule"]
+    generated_at: datetime
 
 
 class ArticleNeighborRef(BaseModel):

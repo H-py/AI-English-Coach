@@ -53,6 +53,21 @@ export interface ArticleListResponse {
   page_size: number
 }
 
+/** 单个推荐档位（文章列表 + 可选理由） */
+export interface RecommendationTier {
+  items: ArticleListItem[]
+  reason: string | null
+}
+
+/** 个性化推荐文章响应（三档 + 来源标记） */
+export interface ArticleRecommendations {
+  easy: RecommendationTier
+  matched: RecommendationTier
+  challenging: RecommendationTier
+  generated_by: 'agent' | 'rule'
+  generated_at: string
+}
+
 /** 文章列表查询参数 */
 export interface ArticleQuery {
   difficulty?: Difficulty

@@ -4,6 +4,7 @@ import type {
   ArticleListResponse,
   ArticleNeighbors,
   ArticleQuery,
+  ArticleRecommendations,
 } from '@/types/article'
 
 /**
@@ -24,6 +25,11 @@ export const articleApi = {
   /** 获取全部可用标签（用于标签筛选） */
   getTags(): Promise<string[]> {
     return http.get('/articles/tags')
+  },
+
+  /** 获取个性化推荐文章（LLM 生成三档，失败时后端降级为规则） */
+  getRecommendations(): Promise<ArticleRecommendations> {
+    return http.get('/articles/recommendations')
   },
 
   /** 获取文章详情（含正文） */

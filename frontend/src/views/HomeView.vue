@@ -7,7 +7,7 @@ import ArticleCard from '@/components/ArticleCard.vue'
 import { readingApi } from '@/api/reading'
 import { articleApi } from '@/api/article'
 import { useAuthStore } from '@/stores/auth'
-import type { ArticleListItem } from '@/types/article'
+import type { ArticleRecommendations } from '@/types/article'
 
 /**
  * 首页：登录后落地页。
@@ -108,11 +108,29 @@ const stats = ref<StatItem[]>([
 ])
 
 // ============================================================
-//  推荐文章
+//  推荐文章（个性化三档）
 // ============================================================
 
 const articlesLoading = ref(false)
-const articles = ref<ArticleListItem[]>([])
+const recommendations = ref<ArticleRecommendations | null>(null)
+
+/** 三档推荐分组（隐藏空档），供模板遍历渲染 */
+const tierList = computed(() => {
+  const r = recommendations.value
+  if (!r) return []
+  return [
+    { key: 'easy', titleKey: 'home.recommendationEasy', hintKey: 'home.recommendationEasyHint', tier: r.easy },
+    { key: 'matched', titleKey: 'home.recommendationMatched', hintKey: 'home.recommendationMatchedHint', tier: r.matched },
+    { key: 'challenging', titleKey: 'home.recommendationChallenging', hintKey: 'home.recommendationChallengingHint', tier: r.challenging }
+  ].filter((group) => group.tier.items.length > 0)
+})
+
+/** 引导语：agent 来源用"智能体推荐"文案，规则回退用较轻文案 */
+const leadKey = computed(() =>
+  recommendations.value?.generated_by === 'agent'
+    ? 'home.recommendedAgentLead'
+    : 'home.recommendedRuleLead'
+)
 
 // ============================================================
 //  数据加载
@@ -154,12 +172,11 @@ async function fetchStats(): Promise<void> {
   }
 }
 
-/** 拉取推荐文章（最新发布的 6 篇） */
-async function fetchArticles(): Promise<void> {
+/** 拉取个性化推荐文章（后端 LLM 生成，失败自动降级为规则） */
+async function fetchRecommendations(): Promise<void> {
   articlesLoading.value = true
   try {
-    const res = await articleApi.list({ page: 1, page_size: 6 })
-    articles.value = res.items
+    recommendations.value = await articleApi.getRecommendations()
   } finally {
     articlesLoading.value = false
   }
@@ -183,7 +200,7 @@ function goToVocabulary(): void {
 
 onMounted(() => {
   fetchStats()
-  fetchArticles()
+  fetchRecommendations()
 })
 </script>
 
@@ -268,7 +285,7 @@ onMounted(() => {
       </NButton>
     </section>
 
-    <!-- 推荐文章 -->
+    <!-- 推荐文章（个性化三档） -->
     <section class="space-y-5">
       <div class="space-y-1">
         <h2
@@ -276,27 +293,39 @@ onMounted(() => {
         >
           {{ t('home.recommendedTitle') }}
         </h2>
-        <p class="text-sm text-neutral-500 dark:text-neutral-400">
-          {{ t('home.recommendedSubtitle') }}
+        <p class="text-sm text-neutral-500 dark:text-neutral-400 prose-comfortable">
+          {{ t(leadKey) }}
         </p>
       </div>
 
       <div class="min-h-[200px]">
         <NSpin :show="articlesLoading">
           <NEmpty
-            v-if="!articlesLoading && articles.length === 0"
+            v-if="!articlesLoading && tierList.length === 0"
             :description="t('home.noRecommendations')"
             class="py-16"
           />
-          <div
-            v-else
-            class="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3"
-          >
-            <ArticleCard
-              v-for="article in articles"
-              :key="article.id"
-              :article="article"
-            />
+
+          <div v-else class="space-y-8">
+            <div v-for="group in tierList" :key="group.key" class="space-y-3">
+              <div class="flex items-baseline gap-3">
+                <h3
+                  class="text-base font-semibold tracking-tight text-neutral-800 dark:text-neutral-100"
+                >
+                  {{ t(group.titleKey) }}
+                </h3>
+                <span class="truncate text-xs text-neutral-400">
+                  {{ group.tier.reason || t(group.hintKey) }}
+                </span>
+              </div>
+              <div class="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+                <ArticleCard
+                  v-for="article in group.tier.items"
+                  :key="article.id"
+                  :article="article"
+                />
+              </div>
+            </div>
           </div>
         </NSpin>
       </div>

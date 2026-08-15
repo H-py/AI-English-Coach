@@ -11,7 +11,7 @@ from typing import Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.article.models import Article
+from app.modules.article.models import Article, Difficulty
 from app.modules.reading.models import (
     MasteryLevel,
     ReadingHistory,
@@ -509,3 +509,29 @@ async def list_histories_with_article(
     result = await db.execute(data_stmt)
     items = [(row[0], row[1]) for row in result.all()]
     return items, total
+
+
+async def get_read_article_difficulties(
+    db: AsyncSession,
+    user_id: int,
+    limit: int = 20,
+) -> list[tuple[int, str, Difficulty]]:
+    """返回该用户最近阅读的 ``(article_id, article_title, difficulty)`` 三元组。
+
+    按 ``started_at`` 倒序（最近阅读在前），至多 ``limit`` 条，且仅返回
+    文章仍存在（外连接成功）的记录。供文章推荐生成时提供阅读历史上下文，
+    并用于"未读优先"的挑选策略。
+    """
+    stmt = (
+        select(ReadingHistory.article_id, Article.title, Article.difficulty)
+        .outerjoin(Article, ReadingHistory.article_id == Article.id)
+        .where(ReadingHistory.user_id == user_id)
+        .order_by(ReadingHistory.started_at.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return [
+        (row[0], row[1], row[2])
+        for row in result.all()
+        if row[2] is not None
+    ]

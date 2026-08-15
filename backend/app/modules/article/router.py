@@ -10,7 +10,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import CurrentUser, DbSession
+from app.api.deps import CurrentUser, DbSession, RedisClient
 from app.core.response import ResponseModel, success
 from app.modules.article.models import Difficulty
 from app.modules.article.schemas import (
@@ -18,11 +18,13 @@ from app.modules.article.schemas import (
     ArticleNeighborsOut,
     ArticleOut,
     ArticleQueryParams,
+    ArticleRecommendationsOut,
 )
 from app.modules.article.service import (
     get_article_detail,
     get_article_list,
     get_article_neighbors,
+    get_recommendations,
     get_tags,
 )
 
@@ -67,6 +69,25 @@ async def list_tags_endpoint(
     """返回已发布文章使用的所有唯一标签。"""
     tags = await get_tags(db)
     return success(tags)
+
+
+@router.get(
+    "/recommendations",
+    response_model=ResponseModel[ArticleRecommendationsOut],
+    summary="Get personalized article recommendations",
+)
+async def get_recommendations_endpoint(
+    db: DbSession,
+    redis: RedisClient,
+    current_user: CurrentUser,
+) -> dict:
+    """根据用户水平/画像/阅读历史返回个性化三档文章推荐。
+
+    由 LLM 单次调用生成；LLM 失败时自动降级为按难度的规则推荐，因此
+    该接口通常不报错。
+    """
+    result = await get_recommendations(db, current_user, redis)
+    return success(result)
 
 
 @router.get(

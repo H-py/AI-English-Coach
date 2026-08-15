@@ -261,6 +261,64 @@ async def list_all_articles(
     return items, total
 
 
+async def list_articles_for_recommendation(
+    db: AsyncSession, cap: int = 60
+) -> list[Article]:
+    """按难度分层采样已发布文章，返回至多 ``cap`` 篇（难度低→高排序）。
+
+    对每个难度（1-5 星）各取 ``ceil(cap/5)`` 篇最新文章，按 id 去重合并；
+    若合并后仍不足 ``cap`` 篇，用其余最新文章补齐。保证候选清单既有难度
+    多样性，又不会让推荐提示词超出 token 预算。
+
+    Args:
+        db: 当前活跃的异步会话。
+        cap: 返回的最大文章数。
+
+    Returns:
+        去重后的 :class:`Article` 列表，按难度（1→5）、再按最新优先排序。
+    """
+    import math
+
+    per_level = math.ceil(cap / 5)
+    seen: set[int] = set()
+    ordered: list[Article] = []
+
+    # 每个难度各取 per_level 篇最新文章。
+    for diff in Difficulty:
+        stmt = (
+            select(Article)
+            .where(
+                Article.is_published.is_(True),
+                Article.difficulty == diff,
+            )
+            .order_by(Article.created_at.desc(), Article.id.desc())
+            .limit(per_level)
+        )
+        for article in (await db.execute(stmt)).scalars().all():
+            if article.id not in seen:
+                seen.add(article.id)
+                ordered.append(article)
+
+    # 不足 cap 篇时，用全部已发布文章（最新优先）补齐。
+    if len(ordered) < cap:
+        stmt = (
+            select(Article)
+            .where(Article.is_published.is_(True))
+            .order_by(Article.created_at.desc(), Article.id.desc())
+            .limit(cap)
+        )
+        for article in (await db.execute(stmt)).scalars().all():
+            if article.id not in seen:
+                seen.add(article.id)
+                ordered.append(article)
+
+    # 难度低→高排序；同难度保持最新优先。
+    ordered.sort(
+        key=lambda a: (int(a.difficulty.value), -int(a.id))
+    )
+    return ordered[:cap]
+
+
 async def delete_article(db: AsyncSession, article: Article) -> None:
     """从数据库中删除一篇文章。
 
