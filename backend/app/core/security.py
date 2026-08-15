@@ -100,12 +100,18 @@ def verify_token(token: str, expected_type: Optional[str] = None) -> dict[str, A
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except jwt.ExpiredSignatureError:
-        raise BizException("token has expired", code=CODE_AUTH_ERROR)
+        raise BizException(
+            "token has expired", code=CODE_AUTH_ERROR, http_status=401
+        )
     except jwt.InvalidTokenError:
-        raise BizException("invalid token", code=CODE_AUTH_ERROR)
+        raise BizException(
+            "invalid token", code=CODE_AUTH_ERROR, http_status=401
+        )
 
     if expected_type is not None and payload.get("type") != expected_type:
         raise BizException(
-            f"unexpected token type: expected {expected_type}", code=CODE_AUTH_ERROR
+            f"unexpected token type: expected {expected_type}",
+            code=CODE_AUTH_ERROR,
+            http_status=401,
         )
     return payload

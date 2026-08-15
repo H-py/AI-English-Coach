@@ -1,8 +1,16 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
-import { NForm, NFormItem, NInput, NButton, type FormInst, type FormRules } from 'naive-ui'
+import { useRoute, useRouter } from 'vue-router'
+import {
+  NForm,
+  NFormItem,
+  NInput,
+  NButton,
+  useMessage,
+  type FormInst,
+  type FormRules
+} from 'naive-ui'
 import { useAuth } from '@/composables/useAuth'
 import type { LoginPayload } from '@/types/auth'
 
@@ -10,10 +18,20 @@ import type { LoginPayload } from '@/types/auth'
  * 登录页。
  * 极简卡片式表单：邮箱 + 密码，提交后调用 useAuth().login。
  * 错误提示由 axios 响应拦截器统一处理，这里仅负责表单校验与 loading 状态。
+ * 会话过期时由拦截器跳转到 /login?session_expired=1，此处读取参数并提示。
  */
 const { t } = useI18n()
 const router = useRouter()
+const route = useRoute()
+const message = useMessage()
 const { login } = useAuth()
+
+// 会话过期回跳：提示用户重新登录
+onMounted(() => {
+  if (route.query.session_expired) {
+    message.warning(t('auth.sessionExpired'))
+  }
+})
 
 const formRef = ref<FormInst | null>(null)
 const loading = ref(false)

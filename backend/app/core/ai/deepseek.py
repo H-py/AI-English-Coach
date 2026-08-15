@@ -94,16 +94,21 @@ class DeepSeekProvider(LLMProvider):
         )
 
     def _raise_connect_error(self, exc: Exception) -> None:
-        """针对连接层异常抛出 :class:`BizException` 或原样重抛。
+        """针对连接层异常抛出带友好提示的 :class:`BizException`。
 
-        用户自定义配置失败时给出友好提示（``50004``）；默认提供方保持
-        原有的行为（连接异常原样向上传播）。
+        连接错误（无法连接 / 连接中断 / 流式回复被截断）统一转成可读的
+        中文提示，避免底层英文错误直接暴露给用户。用户自定义配置失败时
+        给出指向 Base URL 的提示（``50004``）；默认提供方给出通用提示
+        （``50003``）。原始异常由调用方记录日志，便于排查。
         """
-        if not self._from_user_config:
-            raise exc
+        if self._from_user_config:
+            raise BizException(
+                f"无法连接到模型服务 {self._base_url} —— 请检查 Base URL 是否正确、网络是否可达",
+                code=USER_AI_CONFIG_ERROR_CODE,
+            )
         raise BizException(
-            f"无法连接到模型服务 {self._base_url} —— 请检查 Base URL 是否正确、网络是否可达",
-            code=USER_AI_CONFIG_ERROR_CODE,
+            "模型服务连接异常，AI 回复未完整生成，请稍后重试",
+            code=AI_API_ERROR_CODE,
         )
 
     def _map_api_error(self, status_code: int, body: str) -> BizException:

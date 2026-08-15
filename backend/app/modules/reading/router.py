@@ -20,6 +20,7 @@ from app.modules.reading.schemas import (
     SentenceCollectionOut,
     SentenceCollectionUpdate,
     SentenceListResponse,
+    VocabularyPlanOut,
     WordCollectionCreate,
     WordCollectionOut,
     WordCollectionUpdate,
@@ -27,9 +28,11 @@ from app.modules.reading.schemas import (
 )
 from app.modules.reading.service import (
     end_reading,
+    get_vocabulary_study_plan,
     list_histories,
     list_sentences,
     list_words,
+    mark_word_studied,
     remove_sentence,
     remove_word,
     save_sentence,
@@ -98,6 +101,36 @@ async def update_word_endpoint(
     """更新某个收藏单词的掌握程度和/或学习次数。"""
     word = await update_word_mastery(db, current_user.id, word_id, data)
     return success(word)
+
+
+@router.post(
+    "/words/{word_id}/study",
+    response_model=ResponseModel[WordCollectionOut],
+    summary="Mark a word as studied",
+)
+async def mark_word_studied_endpoint(
+    word_id: int,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict:
+    """把某个收藏单词标记为已学习一次（背诵场景，服务端递增学习次数）。"""
+    word = await mark_word_studied(db, current_user.id, word_id)
+    return success(word)
+
+
+@router.get(
+    "/study-plan",
+    response_model=ResponseModel[VocabularyPlanOut],
+    summary="Get AI vocabulary study plan",
+)
+async def get_study_plan_endpoint(
+    db: DbSession,
+    current_user: CurrentUser,
+    count: int = Query(default=10, ge=1, le=50),
+) -> dict:
+    """生成一次生词背诵方案（AI 选词 + 顺序 + 建议；失败降级为规则）。"""
+    result = await get_vocabulary_study_plan(db, current_user, count)
+    return success(result)
 
 
 @router.delete(

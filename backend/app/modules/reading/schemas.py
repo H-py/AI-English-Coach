@@ -6,7 +6,7 @@
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -67,6 +67,15 @@ class WordListResponse(BaseModel):
 
     items: list[WordCollectionOut]
     total: int
+
+
+class VocabularyPlanOut(BaseModel):
+    """一次背诵方案：有序的单词序列 + 背诵建议 + 来源标记。"""
+
+    words: list[WordCollectionOut]
+    note: Optional[str] = None
+    total: int
+    generated_by: Literal["agent", "rule"]
 
 
 # ---- 句子收藏模式 -----------------------------------------------------------

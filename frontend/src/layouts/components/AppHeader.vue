@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -12,7 +13,7 @@ import { i18n } from '@/locales'
 /**
  * 顶栏：左侧折叠按钮，右侧语言切换 + 主题切换 + 用户区域。
  * 极简、毛玻璃背景，强调留白。
- * 用户区域：已登录显示用户名 + 登出，未登录显示登录入口。
+ * 用户区域：已登录显示头像 + 用户名 + 登出，未登录显示登录入口。
  */
 const app = useAppStore()
 const auth = useAuthStore()
@@ -22,6 +23,9 @@ const { toggleTheme, isDark } = useTheme()
 const { logout } = useAuth()
 const router = useRouter()
 const { t } = useI18n()
+
+/** 头像回退：无 avatar_url 时取用户名首字母大写 */
+const userInitial = computed(() => user.value?.username?.charAt(0).toUpperCase() ?? '?')
 
 function toggleLocale(): void {
   const next = app.locale === 'zh' ? 'en' : 'zh'
@@ -88,7 +92,22 @@ function goLogin(): void {
 
       <!-- 用户区域 -->
       <template v-if="isAuthenticated">
-        <NText class="user-name" depth="2">{{ user?.username }}</NText>
+        <div class="flex items-center gap-2">
+          <!-- 头像：有 avatar_url 显示图片，否则显示用户名首字母 -->
+          <img
+            v-if="user?.avatar_url"
+            :src="user.avatar_url"
+            :alt="user?.username ?? ''"
+            class="h-8 w-8 flex-shrink-0 rounded-full object-cover"
+          />
+          <div
+            v-else
+            class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-600 dark:bg-blue-500/20 dark:text-blue-400"
+          >
+            {{ userInitial }}
+          </div>
+          <NText class="user-name" depth="2">{{ user?.username }}</NText>
+        </div>
         <NButton quaternary size="small" @click="logout">
           {{ t('auth.logout') }}
         </NButton>

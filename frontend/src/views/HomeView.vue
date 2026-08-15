@@ -299,7 +299,10 @@ onMounted(() => {
       </div>
 
       <div class="min-h-[200px]">
-        <NSpin :show="articlesLoading">
+        <NSpin
+          :show="articlesLoading"
+          :description="t('home.recommendedGenerating')"
+        >
           <NEmpty
             v-if="!articlesLoading && tierList.length === 0"
             :description="t('home.noRecommendations')"

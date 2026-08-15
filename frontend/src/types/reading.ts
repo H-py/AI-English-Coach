@@ -25,6 +25,14 @@ export interface WordCollection {
   updated_at: string
 }
 
+/** 一次背诵方案：有序单词序列 + 背诵建议 + 来源标记 */
+export interface VocabularyPlan {
+  words: WordCollection[]
+  note: string | null
+  total: number
+  generated_by: 'agent' | 'rule'
+}
+
 /** 收藏的句子 */
 export interface SentenceCollection {
   id: number

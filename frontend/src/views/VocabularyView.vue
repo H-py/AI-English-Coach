@@ -5,6 +5,7 @@ import {
   NTabs,
   NTab,
   NInput,
+  NInputNumber,
   NTag,
   NModal,
   NButton,
@@ -209,6 +210,290 @@ async function handleDelete(word: WordCollection): Promise<void> {
   }
 }
 
+// ============================================================
+//  AI 辅助背诵
+// ============================================================
+
+/** 背诵设置弹窗 / 背诵弹窗显示状态 */
+const showReciteSetup = ref(false)
+const showRecite = ref(false)
+
+/** 本次要背诵的单词数量（默认 10，1-50） */
+const reciteCount = ref(10)
+/** 快捷数量选项 */
+const reciteOptions = [
+  { label: '5', value: 5 },
+  { label: '10', value: 10 },
+  { label: '15', value: 15 },
+  { label: '20', value: 20 }
+]
+/** 生成方案中（loading） */
+const planGenerating = ref(false)
+
+/** 背诵队列（AI 生成的有序单词）与当前进度 */
+const reciteQueue = ref<WordCollection[]>([])
+const reciteIndex = ref(0)
+const reciteNote = ref<string | null>(null)
+/** 正在标记"记住了"的单词 id */
+const studyingId = ref<number | null>(null)
+
+/** 当前展示的单词卡片 */
+const currentWord = computed(() => reciteQueue.value[reciteIndex.value] ?? null)
+
+/** 打开背诵设置弹窗 */
+function openReciteSetup(): void {
+  reciteCount.value = 10
+  showReciteSetup.value = true
+}
+
+/** 确认数量并生成背诵方案 */
+async function startRecite(): Promise<void> {
+  planGenerating.value = true
+  try {
+    const plan = await readingApi.getStudyPlan(reciteCount.value)
+    if (!plan.words.length) {
+      message.info(t('vocabulary.reciteEmpty'))
+      showReciteSetup.value = false
+      return
+    }
+    reciteQueue.value = [...plan.words]
+    reciteNote.value = plan.note
+    reciteIndex.value = 0
+    showReciteSetup.value = false
+    showRecite.value = true
+  } catch {
+    // 错误由 axios 拦截器统一提示
+  } finally {
+    planGenerating.value = false
+  }
+}
+
+/** 记住当前单词：先做双向召回检验，通过后才更新学习信息 */
+async function handleRemembered(): Promise<void> {
+  const word = currentWord.value
+  if (!word || studyingId.value !== null) return
+  // 有中文释义才能检验；缺失时直接通过（老数据兜底）
+  if (word.short_meaning) {
+    openVerify(word)
+    return
+  }
+  await doRemember(word)
+}
+
+/** 检验通过后真正标记学习：服务端递增次数 + 掌握度，进入下一个 */
+async function doRemember(word: WordCollection): Promise<void> {
+  if (studyingId.value !== null) return
+  studyingId.value = word.id
+  try {
+    const updated = await readingApi.markWordStudied(word.id)
+    // 同步生词本列表（学习次数变化）
+    const idx = words.value.findIndex((w) => w.id === word.id)
+    if (idx !== -1) words.value[idx] = updated
+    if (activeWord.value?.id === word.id) activeWord.value = updated
+    reciteIndex.value += 1
+    if (reciteIndex.value >= reciteQueue.value.length) {
+      finishRecite()
+    }
+  } catch {
+    // 错误由 axios 拦截器统一提示
+  } finally {
+    studyingId.value = null
+  }
+}
+
+/** 没记住当前单词：掌握度重置为新词，重新排到队列末尾复习（不计学习次数） */
+async function handleForgot(): Promise<void> {
+  const word = currentWord.value
+  if (!word || studyingId.value !== null) return
+  await resetMasteryAndRequeue(word)
+}
+
+/** 把指定单词的掌握度重置为新词（服务端），并重新排到队列末尾复习 */
+async function resetMasteryAndRequeue(word: WordCollection): Promise<void> {
+  // 立即本地重排，不等待网络
+  requeueWord(word)
+  // 已是新词则无需请求
+  if (word.mastery_level !== 'new') {
+    try {
+      const updated = await readingApi.updateWord(word.id, { mastery_level: 'new' })
+      const idx = words.value.findIndex((w) => w.id === word.id)
+      if (idx !== -1) words.value[idx] = updated
+      if (activeWord.value?.id === word.id) activeWord.value = updated
+    } catch {
+      // 错误由 axios 拦截器统一提示；掌握度未更新仍照常复习
+    }
+  }
+}
+
+/** 把指定单词重新排到队列末尾复习 */
+function requeueWord(word: WordCollection): void {
+  reciteQueue.value.splice(reciteIndex.value, 1)
+  reciteQueue.value.push(word)
+  if (reciteIndex.value >= reciteQueue.value.length) {
+    reciteIndex.value = 0
+  }
+}
+
+/** 切换到上一个单词（纯翻页，不标记学习） */
+function handlePrevWord(): void {
+  if (reciteIndex.value > 0) reciteIndex.value -= 1
+}
+
+/** 切换到下一个单词（纯翻页，不标记学习） */
+function handleNextWord(): void {
+  if (reciteIndex.value < reciteQueue.value.length - 1) {
+    reciteIndex.value += 1
+  }
+}
+
+/** 背诵完成：关闭弹窗并刷新列表（学习次数已更新） */
+function finishRecite(): void {
+  showRecite.value = false
+  reciteQueue.value = []
+  message.success(t('vocabulary.reciteDone'))
+  fetchWords()
+}
+
+// ============================================================
+//  记住前召回检验
+// ============================================================
+
+/** 检验弹窗状态 */
+const showVerify = ref(false)
+const verifyWord = ref<WordCollection | null>(null)
+/** 当前检验步骤：1=看英文写中文，2=看中文写英文 */
+const verifyStep = ref<1 | 2>(1)
+const verifyInput = ref('')
+/** 最近一次提交答错：展示正确答案与重试/没记住 */
+const verifyFailed = ref(false)
+
+/** 打开检验弹窗（从"记住了"进入） */
+function openVerify(word: WordCollection): void {
+  verifyWord.value = word
+  verifyStep.value = 1
+  verifyInput.value = ''
+  verifyFailed.value = false
+  showVerify.value = true
+}
+
+function closeVerify(): void {
+  showVerify.value = false
+  verifyWord.value = null
+  verifyInput.value = ''
+  verifyFailed.value = false
+}
+
+/** 提交当前检验步骤的答案，通过则推进/标记，答错则进入失败态 */
+function submitVerify(): void {
+  const word = verifyWord.value
+  if (!word || !verifyInput.value.trim() || verifyFailed.value) return
+  const input = verifyInput.value
+  if (verifyStep.value === 1) {
+    const ok = gradeMeaning(input, word.short_meaning ?? '')
+    if (ok) {
+      verifyInput.value = ''
+      verifyStep.value = 2
+    } else {
+      verifyFailed.value = true
+    }
+  } else {
+    const ok = gradeWord(input, word.word)
+    if (ok) {
+      const done = verifyWord.value
+      closeVerify()
+      if (done) void doRemember(done)
+    } else {
+      verifyFailed.value = true
+    }
+  }
+}
+
+/** 答错后重试：清空输入回到该检验步骤 */
+function retryVerify(): void {
+  verifyInput.value = ''
+  verifyFailed.value = false
+}
+
+/** 答错后选择没记住：关闭检验弹窗，掌握度重置为新词并重新入队 */
+async function forgetFromVerify(): Promise<void> {
+  const word = verifyWord.value
+  closeVerify()
+  if (word) await resetMasteryAndRequeue(word)
+}
+
+/** 检验步骤指示 chip 样式：已完成绿色、当前蓝色、未到灰色 */
+function stepChipClass(step: 1 | 2): string {
+  if (verifyFailed.value) {
+    return 'bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500'
+  }
+  if (step < verifyStep.value) {
+    return 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400'
+  }
+  if (step === verifyStep.value) {
+    return 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400'
+  }
+  return 'bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500'
+}
+
+// ---- 召回检验判分 ----
+
+/** 规范化答案：小写、去空白、去标点（保留字母/数字/撇号/连字符） */
+function normalizeAnswer(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/[^\p{L}\p{N}'-]/gu, '')
+}
+
+/** 编辑距离（Levenshtein） */
+function levenshtein(a: string, b: string): number {
+  const m = a.length
+  const n = b.length
+  if (m === 0) return n
+  if (n === 0) return m
+  let prev = Array.from({ length: n + 1 }, (_, j) => j)
+  for (let i = 1; i <= m; i++) {
+    const curr = [i, ...new Array<number>(n).fill(0)]
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost)
+    }
+    prev = curr
+  }
+  return prev[n]
+}
+
+/** 相似度 0-1（基于编辑距离） */
+function similarity(a: string, b: string): number {
+  const maxLen = Math.max(a.length, b.length)
+  if (maxLen === 0) return 1
+  return 1 - levenshtein(a, b) / maxLen
+}
+
+/** 英文拼写判分（看中文→写英文）：必须完全一致，只允许大小写与首尾空白差异 */
+function gradeWord(input: string, correct: string): boolean {
+  return input.trim().toLowerCase() === correct.trim().toLowerCase()
+}
+
+/** 中文释义判分（看英文→写中文）：容差清单式释义（"主管、高管" 答 "主管" 即可） */
+function gradeMeaning(input: string, correct: string): boolean {
+  const a = normalizeAnswer(input)
+  const c = normalizeAnswer(correct)
+  if (!a || !c) return false
+  if (a === c) return true
+  // 中文释义常为"含义A、含义B"清单，答出任一完整词条即通过
+  const tokens = correct
+    .split(/[、，,;；/\\\s]+/)
+    .map(normalizeAnswer)
+    .filter(Boolean)
+  if (tokens.some((tk) => tk === a)) return true
+  // 无分隔符的短释义：整体包含判定，避免单个字符（如"主"答"主管"）误放行
+  if (a.length >= 2 && c.includes(a)) return true
+  if (a.includes(c)) return true
+  return similarity(a, c) >= 0.75
+}
+
 onMounted(fetchWords)
 </script>
 
@@ -243,19 +528,32 @@ onMounted(fetchWords)
         <span class="hidden whitespace-nowrap text-xs text-neutral-400 dark:text-neutral-500 sm:inline">
           {{ t('vocabulary.totalWords', { count: total }) }}
         </span>
-        <NInput
-          v-model:value="searchQuery"
-          :placeholder="t('vocabulary.searchPlaceholder')"
-          clearable
-          class="w-full sm:w-64"
-        >
-          <template #prefix>
-            <svg class="h-4 w-4 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M21 21l-4.3-4.3" stroke-linecap="round" />
+        <!-- 宽度放在普通 div 上（naive-ui 的 NInput 根元素写死 width:100%，
+             会覆盖 Tailwind 的 w-* 类，所以用包装层控制宽度） -->
+        <div class="w-80 sm:w-[16rem]">
+          <NInput
+            v-model:value="searchQuery"
+            :placeholder="t('vocabulary.searchPlaceholder')"
+            clearable
+          >
+            <template #prefix>
+              <svg class="h-4 w-4 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M21 21l-4.3-4.3" stroke-linecap="round" />
+              </svg>
+            </template>
+          </NInput>
+        </div>
+
+        <!-- AI 辅助背诵 -->
+        <NButton type="primary" ghost @click="openReciteSetup">
+          <template #icon>
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18h6 M10 22h4 M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2h6c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z" />
             </svg>
           </template>
-        </NInput>
+          {{ t('vocabulary.aiRecite') }}
+        </NButton>
       </div>
     </div>
 
@@ -436,6 +734,235 @@ onMounted(fetchWords)
             </template>
             {{ t('vocabulary.deleteConfirm') }}
           </NPopconfirm>
+        </div>
+      </template>
+    </NModal>
+
+    <!-- AI 背诵：设置数量弹窗 -->
+    <NModal
+      v-model:show="showReciteSetup"
+      preset="card"
+      :title="t('vocabulary.reciteTitle')"
+      style="width: 400px; max-width: 92vw"
+    >
+      <div class="py-2">
+        <p class="mb-2 text-sm text-neutral-500 dark:text-neutral-400">
+          {{ t('vocabulary.reciteCountLabel') }}
+        </p>
+        <NInputNumber
+          v-model:value="reciteCount"
+          :min="1"
+          :max="50"
+          class="w-full"
+        />
+        <div class="mt-3 flex gap-2">
+          <NButton
+            v-for="opt in reciteOptions"
+            :key="opt.value"
+            size="small"
+            :type="reciteCount === opt.value ? 'primary' : 'default'"
+            @click="reciteCount = opt.value"
+          >
+            {{ opt.label }}
+          </NButton>
+        </div>
+      </div>
+
+      <!-- 生成方案中的友好提示 -->
+      <div
+        v-if="planGenerating"
+        class="flex items-center gap-2 rounded-lg bg-neutral-50 px-3 py-2.5 text-sm text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
+      >
+        <NSpin :size="16" />
+        {{ t('vocabulary.reciteGenerating') }}
+      </div>
+
+      <template #footer>
+        <div class="flex justify-end">
+          <NButton type="primary" :loading="planGenerating" @click="startRecite">
+            {{ t('vocabulary.reciteStart') }}
+          </NButton>
+        </div>
+      </template>
+    </NModal>
+
+    <!-- AI 背诵：逐词背诵弹窗 -->
+    <NModal
+      v-model:show="showRecite"
+      preset="card"
+      :title="t('vocabulary.reciteTitle')"
+      style="width: 480px; max-width: 92vw"
+    >
+      <div class="mb-4 flex items-center justify-between">
+        <span class="text-sm text-neutral-500 dark:text-neutral-400">
+          {{ t('vocabulary.reciteProgress', { cur: reciteIndex + 1, total: reciteQueue.length }) }}
+        </span>
+        <span class="text-xs text-neutral-400">{{ t('vocabulary.reciteHint') }}</span>
+      </div>
+
+      <p v-if="reciteNote" class="mb-4 rounded-lg bg-neutral-50 px-3 py-2 text-xs text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+        {{ t('vocabulary.reciteNote') }}：{{ reciteNote }}
+      </p>
+
+      <!-- 当前单词卡片 -->
+      <div
+        v-if="currentWord"
+        class="rounded-xl border border-neutral-200 bg-neutral-50 p-6 dark:border-neutral-800 dark:bg-neutral-800/40"
+      >
+        <div class="flex items-center justify-between">
+          <h2 class="text-3xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
+            {{ currentWord.word }}
+          </h2>
+          <SpeakerButton :word="currentWord.word" size="small" />
+        </div>
+
+        <p class="mt-2 text-base text-neutral-600 dark:text-neutral-300">
+          {{ currentWord.short_meaning || t('vocabulary.noExplanation') }}
+        </p>
+
+        <div
+          v-if="currentWord.ai_explanation"
+          class="mt-4 border-t border-neutral-200 pt-3 text-sm text-neutral-500 dark:border-neutral-800 dark:text-neutral-400 prose-comfortable"
+          v-html="renderMarkdown(currentWord.ai_explanation)"
+        />
+
+        <p v-if="currentWord.context" class="mt-3 text-xs text-neutral-400 dark:text-neutral-500">
+          {{ t('vocabulary.context') }}：{{ currentWord.context }}
+        </p>
+      </div>
+
+      <template #footer>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <!-- 翻页：上一个 / 下一个（纯切换，不标记） -->
+          <div class="flex gap-2">
+            <NButton
+              :disabled="reciteIndex === 0 || studyingId !== null"
+              @click="handlePrevWord"
+            >
+              <template #icon>
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </template>
+              {{ t('vocabulary.prevWord') }}
+            </NButton>
+            <NButton
+              :disabled="reciteIndex >= reciteQueue.length - 1 || studyingId !== null"
+              @click="handleNextWord"
+            >
+              {{ t('vocabulary.nextWord') }}
+              <template #icon>
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </template>
+            </NButton>
+          </div>
+
+          <!-- 标记：没记住 / 记住了 -->
+          <div class="flex gap-2">
+            <NButton type="error" tertiary :disabled="studyingId !== null" @click="handleForgot">
+              {{ t('vocabulary.forgot') }}
+            </NButton>
+            <NButton type="primary" :loading="studyingId !== null" @click="handleRemembered">
+              {{ t('vocabulary.remembered') }}
+            </NButton>
+          </div>
+        </div>
+      </template>
+    </NModal>
+
+    <!-- 记住前召回检验弹窗 -->
+    <NModal
+      v-model:show="showVerify"
+      preset="card"
+      :title="t('vocabulary.reciteVerifyTitle')"
+      style="width: 440px; max-width: 92vw"
+    >
+      <template v-if="verifyWord">
+        <div class="mb-4 flex items-center justify-between">
+          <span class="text-sm text-neutral-500 dark:text-neutral-400">
+            {{ t('vocabulary.reciteProgress', { cur: reciteIndex + 1, total: reciteQueue.length }) }}
+          </span>
+          <div class="flex items-center gap-1.5">
+            <span class="rounded-full px-2 py-0.5 text-xs" :class="stepChipClass(1)">
+              ① {{ t('vocabulary.reciteVerifyStep1') }}
+            </span>
+            <span class="rounded-full px-2 py-0.5 text-xs" :class="stepChipClass(2)">
+              ② {{ t('vocabulary.reciteVerifyStep2') }}
+            </span>
+          </div>
+        </div>
+
+        <!-- 答题区 -->
+        <template v-if="!verifyFailed">
+          <div
+            class="rounded-xl border border-neutral-200 bg-neutral-50 p-6 text-center dark:border-neutral-800 dark:bg-neutral-800/40"
+          >
+            <p class="text-xs uppercase tracking-wider text-neutral-400">
+              {{ verifyStep === 1 ? t('vocabulary.reciteVerifyStep1') : t('vocabulary.reciteVerifyStep2') }}
+            </p>
+            <p class="mt-3 text-3xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
+              {{ verifyStep === 1 ? verifyWord.word : verifyWord.short_meaning }}
+            </p>
+            <p class="mt-2 text-xs text-neutral-400">
+              {{
+                verifyStep === 1
+                  ? t('vocabulary.reciteVerifyEnglishHint')
+                  : t('vocabulary.reciteVerifyMeaningHint')
+              }}
+            </p>
+          </div>
+
+          <NInput
+            v-model:value="verifyInput"
+            class="mt-4"
+            :placeholder="
+              verifyStep === 1
+                ? t('vocabulary.reciteVerifyMeaningPlaceholder')
+                : t('vocabulary.reciteVerifyWordPlaceholder')
+            "
+            @keydown.enter.prevent="submitVerify"
+          />
+
+          <div class="mt-4 flex justify-end">
+            <NButton type="primary" :disabled="!verifyInput.trim()" @click="submitVerify">
+              {{ t('vocabulary.reciteVerifySubmit') }}
+            </NButton>
+          </div>
+        </template>
+
+        <!-- 答错：展示正确答案 -->
+        <div
+          v-else
+          class="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-500/30 dark:bg-red-500/10"
+        >
+          <p class="text-sm font-semibold text-red-600 dark:text-red-400">
+            {{ t('vocabulary.reciteVerifyWrong') }}
+          </p>
+          <p class="mt-3 text-lg font-semibold text-neutral-900 dark:text-neutral-50">
+            {{ verifyWord.word }}
+            <span
+              v-if="verifyWord.short_meaning"
+              class="ml-2 text-base font-normal text-neutral-500 dark:text-neutral-400"
+            >
+              {{ verifyWord.short_meaning }}
+            </span>
+          </p>
+          <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+            {{ t('vocabulary.reciteVerifyYourAnswer') }}：{{ verifyInput }}
+          </p>
+        </div>
+      </template>
+
+      <template #footer>
+        <div v-if="verifyWord && verifyFailed" class="flex justify-end gap-2">
+          <NButton @click="retryVerify">
+            {{ t('vocabulary.reciteVerifyRetry') }}
+          </NButton>
+          <NButton type="error" tertiary @click="forgetFromVerify">
+            {{ t('vocabulary.forgot') }}
+          </NButton>
         </div>
       </template>
     </NModal>

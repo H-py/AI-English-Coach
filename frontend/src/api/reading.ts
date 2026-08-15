@@ -8,6 +8,7 @@ import type {
   SaveSentencePayload,
   UpdateWordPayload,
   UpdateSentencePayload,
+  VocabularyPlan,
   MasteryLevel
 } from '@/types/reading'
 
@@ -50,6 +51,16 @@ export const readingApi = {
   /** 删除生词本中的单词 */
   deleteWord(id: number): Promise<void> {
     return http.delete(`/reading/words/${id}`)
+  },
+
+  /** 把某个单词标记为已学习一次（背诵场景，服务端递增学习次数） */
+  markWordStudied(id: number): Promise<WordCollection> {
+    return http.post(`/reading/words/${id}/study`)
+  },
+
+  /** 获取一次 AI 背诵方案（有序选词 + 建议；失败降级为规则） */
+  getStudyPlan(count: number): Promise<VocabularyPlan> {
+    return http.get('/reading/study-plan', { params: { count } })
   },
 
   // ---- 句子收藏 ----

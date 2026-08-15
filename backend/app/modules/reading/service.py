@@ -9,6 +9,7 @@ from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.vocabulary_planner import VocabularyPlanner
 from app.core.exceptions import BizException
 from app.modules.article.models import Article
 from app.modules.article.repository import get_article_by_id
@@ -24,11 +25,13 @@ from app.modules.reading.schemas import (
     SentenceCollectionOut,
     SentenceCollectionUpdate,
     SentenceListResponse,
+    VocabularyPlanOut,
     WordCollectionCreate,
     WordCollectionOut,
     WordCollectionUpdate,
     WordListResponse,
 )
+from app.modules.users.models import User
 
 # ---- 业务错误码 -------------------------------------------------------------
 # 文章未找到（与文章模块的错误码共用）。
@@ -264,6 +267,62 @@ async def update_word_mastery(
     if update_data:
         word = await repo.update_word(db, word, update_data)
     return WordCollectionOut.model_validate(word)
+
+
+async def mark_word_studied(
+    db: AsyncSession, user_id: int, word_id: int
+) -> WordCollectionOut:
+    """把某个收藏单词标记为已学习一次（背诵场景）。
+
+    由服务端权威递增 ``study_count``、更新 ``last_studied_at``，并把
+    ``mastery_level`` 推进到 ``mastered``（用户"记住了"即视为掌握）。
+
+    Args:
+        db: 当前活跃的异步会话。
+        user_id: 所属用户的 id。
+        word_id: 单词收藏记录的主键。
+
+    Returns:
+        更新后单词的 :class:`WordCollectionOut`。
+
+    Raises:
+        BizException: 若该用户不存在指定 id 的单词（错误码 ``90003``）。
+    """
+    word = await repo.get_word(db, user_id, word_id)
+    if word is None:
+        raise BizException("word not found", code=WORD_NOT_FOUND_CODE)
+    word = await repo.increment_word_study(db, word)
+    return WordCollectionOut.model_validate(word)
+
+
+async def get_vocabulary_study_plan(
+    db: AsyncSession, user: User, count: int
+) -> VocabularyPlanOut:
+    """生成一次生词背诵方案（有序选词 + 背诵建议）。
+
+    由 :class:`VocabularyPlanner` 调用数据工具 + 单次 LLM 调用生成；
+    LLM 失败时自动降级为规则选词，因此该接口通常不报错。
+
+    Args:
+        db: 当前活跃的异步会话。
+        user: 已认证用户。
+        count: 本次要背诵的单词数量。
+
+    Returns:
+        有序的单词序列与背诵建议的 :class:`VocabularyPlanOut`。
+    """
+    result = await VocabularyPlanner().plan(db, user, count)
+    words = [
+        WordCollectionOut.model_validate(result.words_by_id[i])
+        for i in result.word_ids
+        if i in result.words_by_id
+    ]
+    return VocabularyPlanOut(
+        words=words,
+        note=result.note,
+        total=len(words),
+        generated_by=result.generated_by,
+    )
 
 
 async def remove_word(db: AsyncSession, user_id: int, word_id: int) -> None:

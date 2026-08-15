@@ -8,6 +8,7 @@ import {
   NPagination,
   NSpin,
   NEmpty,
+  NModal,
   useMessage
 } from 'naive-ui'
 import { useDebounceFn } from '@vueuse/core'
@@ -19,8 +20,8 @@ import type { SentenceCollection } from '@/types/reading'
  *
  * 功能：
  *  - 按句子文本搜索（防抖 300ms）
- *  - 卡片列表展示：句子文本（英文）、用户笔记（可内联编辑）、创建时间
- *  - 操作：内联编辑笔记（保存 / 取消）、Popconfirm 确认删除
+ *  - 干净的双列网格卡片，仅展示句子文本；点击卡片打开详情弹窗
+ *  - 详情弹窗内展示完整句子、笔记（可内联编辑）、创建时间与删除
  *  - 分页、空状态、加载状态
  *
  * 数据通过 readingApi 直接获取（非 store），本页自管理列表状态。
@@ -71,6 +72,29 @@ const editingId = ref<number | null>(null)
 const editingNote = ref('')
 /** 正在保存笔记的句子 id，用于按钮 loading 与防重复提交 */
 const savingId = ref<number | null>(null)
+
+// ============================================================
+//  详情弹窗状态
+// ============================================================
+
+const showDetail = ref(false)
+const activeSentence = ref<SentenceCollection | null>(null)
+
+/** 打开句子详情弹窗（列表卡片仅显示句子，其余信息都在弹窗内） */
+function openDetail(sentence: SentenceCollection): void {
+  activeSentence.value = sentence
+  editingId.value = null
+  editingNote.value = ''
+  showDetail.value = true
+}
+
+/** 关闭句子详情弹窗 */
+function closeDetail(): void {
+  showDetail.value = false
+  activeSentence.value = null
+  editingId.value = null
+  editingNote.value = ''
+}
 
 // ============================================================
 //  数据拉取
@@ -134,6 +158,7 @@ async function saveEdit(sentence: SentenceCollection): Promise<void> {
     })
     const idx = sentences.value.findIndex((s) => s.id === sentence.id)
     if (idx !== -1) sentences.value[idx] = updated
+    if (activeSentence.value?.id === sentence.id) activeSentence.value = updated
     message.success(t('sentences.noteUpdated'))
     editingId.value = null
     editingNote.value = ''
@@ -155,6 +180,10 @@ async function handleDelete(sentence: SentenceCollection): Promise<void> {
     sentences.value = sentences.value.filter((s) => s.id !== sentence.id)
     total.value = Math.max(0, total.value - 1)
     message.success(t('sentences.sentenceDeleted'))
+    // 删除的是详情弹窗中的句子则关闭弹窗
+    if (activeSentence.value?.id === sentence.id) {
+      closeDetail()
+    }
     // 当前页删空且非第 1 页：回退一页重新拉取，避免停留在空白页
     if (sentences.value.length === 0 && page.value > 1) {
       page.value -= 1
@@ -219,96 +248,30 @@ onMounted(fetchSentences)
           </template>
         </NEmpty>
 
-        <!-- 卡片列表 -->
-        <div v-else class="space-y-4">
-          <article
+        <!-- 卡片列表：仅显示句子，点击卡片打开详情 -->
+        <div v-else class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <button
             v-for="sentence in sentences"
             :key="sentence.id"
-            class="sentence-card rounded-xl border border-neutral-200 bg-white p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900 sm:p-6"
+            type="button"
+            class="sentence-card group flex items-start justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-neutral-700"
+            @click="openDetail(sentence)"
           >
-            <!-- 句子文本 -->
-            <p class="text-lg font-medium leading-relaxed text-neutral-900 dark:text-neutral-50">
+            <p class="line-clamp-3 flex-1 text-[15px] leading-relaxed text-neutral-800 dark:text-neutral-100">
               {{ sentence.sentence }}
             </p>
-
-            <!-- 笔记 -->
-            <div class="mt-4">
-              <div class="flex items-center justify-between">
-                <span class="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-                  {{ t('sentences.note') }}
-                </span>
-                <!-- 编辑 / 添加按钮（非编辑态显示） -->
-                <NButton
-                  v-if="editingId !== sentence.id"
-                  size="tiny"
-                  quaternary
-                  @click="startEdit(sentence)"
-                >
-                  {{ sentence.note ? t('sentences.editNote') : t('sentences.addNote') }}
-                </NButton>
-              </div>
-
-              <!-- 编辑态：内联 textarea -->
-              <div v-if="editingId === sentence.id" class="mt-2">
-                <NInput
-                  v-model:value="editingNote"
-                  type="textarea"
-                  :autosize="{ minRows: 2, maxRows: 6 }"
-                  :placeholder="t('sentences.addNote')"
-                />
-                <div class="mt-2 flex justify-end gap-2">
-                  <NButton size="small" @click="cancelEdit">
-                    {{ t('sentences.cancel') }}
-                  </NButton>
-                  <NButton
-                    size="small"
-                    type="primary"
-                    :loading="savingId === sentence.id"
-                    @click="saveEdit(sentence)"
-                  >
-                    {{ t('sentences.save') }}
-                  </NButton>
-                </div>
-              </div>
-
-              <!-- 展示态：已有笔记 -->
-              <p
-                v-else-if="sentence.note"
-                class="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-neutral-600 dark:text-neutral-300"
-              >
-                {{ sentence.note }}
-              </p>
-
-              <!-- 展示态：无笔记 -->
-              <p v-else class="mt-1 text-sm text-neutral-400 dark:text-neutral-500">
-                {{ t('sentences.noNote') }}
-              </p>
-            </div>
-
-            <!-- 底部：创建时间 + 删除 -->
-            <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 pt-4 dark:border-neutral-800">
-              <div class="flex items-center gap-2 text-xs text-neutral-400 dark:text-neutral-500">
-                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="4" width="18" height="18" rx="2" />
-                  <path d="M16 2v4M8 2v4M3 10h18" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-                <span>{{ formatDateTime(sentence.created_at) }}</span>
-              </div>
-
-              <NPopconfirm
-                :positive-text="t('common.delete')"
-                :negative-text="t('common.cancel')"
-                @positive-click="handleDelete(sentence)"
-              >
-                <template #trigger>
-                  <NButton size="small" quaternary type="error">
-                    {{ t('common.delete') }}
-                  </NButton>
-                </template>
-                {{ t('sentences.deleteConfirm') }}
-              </NPopconfirm>
-            </div>
-          </article>
+            <svg
+              class="mt-1 h-4 w-4 flex-shrink-0 text-neutral-300 transition-transform group-hover:translate-x-0.5 dark:text-neutral-600"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="m9 18 6-6-6-6" />
+            </svg>
+          </button>
         </div>
       </NSpin>
     </div>
@@ -326,6 +289,103 @@ onMounted(fetchSentences)
         @update:page="handlePageChange"
       />
     </div>
+
+    <!-- 句子详情弹窗 -->
+    <NModal
+      v-model:show="showDetail"
+      preset="card"
+      :title="t('sentences.detailTitle')"
+      style="width: 560px; max-width: 92vw"
+    >
+      <template v-if="activeSentence">
+        <!-- 完整句子 -->
+        <div
+          class="rounded-xl border border-neutral-200 bg-neutral-50 p-5 dark:border-neutral-800 dark:bg-neutral-800/40"
+        >
+          <p class="whitespace-pre-wrap text-lg leading-relaxed text-neutral-900 dark:text-neutral-50">
+            {{ activeSentence.sentence }}
+          </p>
+        </div>
+
+        <!-- 笔记 -->
+        <div class="mt-5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+              {{ t('sentences.note') }}
+            </span>
+            <!-- 编辑 / 添加按钮（非编辑态显示） -->
+            <NButton
+              v-if="editingId !== activeSentence.id"
+              size="tiny"
+              quaternary
+              @click="startEdit(activeSentence)"
+            >
+              {{ activeSentence.note ? t('sentences.editNote') : t('sentences.addNote') }}
+            </NButton>
+          </div>
+
+          <!-- 编辑态：textarea -->
+          <div v-if="editingId === activeSentence.id" class="mt-2">
+            <NInput
+              v-model:value="editingNote"
+              type="textarea"
+              :autosize="{ minRows: 3, maxRows: 8 }"
+              :placeholder="t('sentences.addNote')"
+            />
+            <div class="mt-2 flex justify-end gap-2">
+              <NButton size="small" @click="cancelEdit">
+                {{ t('sentences.cancel') }}
+              </NButton>
+              <NButton
+                size="small"
+                type="primary"
+                :loading="savingId === activeSentence.id"
+                @click="saveEdit(activeSentence)"
+              >
+                {{ t('sentences.save') }}
+              </NButton>
+            </div>
+          </div>
+
+          <!-- 展示态：已有笔记 -->
+          <p
+            v-else-if="activeSentence.note"
+            class="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-neutral-600 dark:text-neutral-300"
+          >
+            {{ activeSentence.note }}
+          </p>
+
+          <!-- 展示态：无笔记 -->
+          <p v-else class="mt-1 text-sm text-neutral-400 dark:text-neutral-500">
+            {{ t('sentences.noNote') }}
+          </p>
+        </div>
+
+        <!-- 底部：创建时间 + 删除 -->
+        <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 pt-4 dark:border-neutral-800">
+          <div class="flex items-center gap-2 text-xs text-neutral-400 dark:text-neutral-500">
+            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <path d="M16 2v4M8 2v4M3 10h18" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span>{{ formatDateTime(activeSentence.created_at) }}</span>
+          </div>
+
+          <NPopconfirm
+            :positive-text="t('common.delete')"
+            :negative-text="t('common.cancel')"
+            @positive-click="handleDelete(activeSentence)"
+          >
+            <template #trigger>
+              <NButton size="small" quaternary type="error">
+                {{ t('common.delete') }}
+              </NButton>
+            </template>
+            {{ t('sentences.deleteConfirm') }}
+          </NPopconfirm>
+        </div>
+      </template>
+    </NModal>
   </div>
 </template>
 

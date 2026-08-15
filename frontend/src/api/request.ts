@@ -14,6 +14,25 @@ import { getAccessToken, clearAllAuthData } from '@/utils'
  */
 const { message } = createDiscreteApi(['message'])
 
+/** 认证错误码（与后端 CODE_AUTH_ERROR 一致） */
+const CODE_AUTH_ERROR = 20000
+
+/** 是否已触发登录态失效跳转，避免并发请求重复处理 */
+let sessionExpiredHandled = false
+
+/** 是否正停留在登录页（正在尝试登录，401 应视为账号密码错误而非会话过期） */
+function isOnLoginPage(): boolean {
+  return window.location.pathname.replace(/\/+$/, '') === '/login'
+}
+
+/** 登录态失效：清除本地认证数据并跳转登录页，附带过期提示参数 */
+function handleSessionExpired(): void {
+  if (sessionExpiredHandled) return
+  sessionExpiredHandled = true
+  clearAllAuthData()
+  window.location.replace('/login?session_expired=1')
+}
+
 const request: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
   timeout: 15000
@@ -48,16 +67,16 @@ request.interceptors.response.use(
   },
   (error) => {
     const status = error?.response?.status
+    const envelope = error?.response?.data as Partial<ResponseResult> | undefined
 
-    // HTTP 401：清除本地认证态（token + 用户信息）并跳转登录页
-    if (status === 401) {
-      clearAllAuthData()
-      window.location.href = '/login'
+    // 登录态失效：HTTP 401 或信封携带认证错误码（token 过期/无效）。
+    // 已停留在登录页时不做跳转，走下方统一提示（避免把"邮箱或密码错误"误判为会话过期）。
+    if ((status === 401 || envelope?.code === CODE_AUTH_ERROR) && !isOnLoginPage()) {
+      handleSessionExpired()
       return Promise.reject(error)
     }
 
     // 优先使用后端信封里的 message，其次 axios 错误信息
-    const envelope = error?.response?.data as Partial<ResponseResult> | undefined
     const msg =
       envelope?.message || error?.message || 'Network error, please try again later'
     message.error(msg)

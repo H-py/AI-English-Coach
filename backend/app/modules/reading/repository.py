@@ -6,6 +6,7 @@
 包裹在单个事务中。
 """
 
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -173,6 +174,30 @@ async def update_word(
     """
     for key, value in data.items():
         setattr(word, key, value)
+    await db.flush()
+    await db.refresh(word)
+    return word
+
+
+async def increment_word_study(
+    db: AsyncSession, word: WordCollection
+) -> WordCollection:
+    """把某个收藏单词的学习次数加一，更新上次学习时间，并标记为已掌握。
+
+    背诵场景使用：用户每"记住了"一个单词调用一次，由服务端权威递增
+    ``study_count``、更新 ``last_studied_at``，并把 ``mastery_level``
+    推进到 ``mastered``（用户已确认记住，即可视为掌握）。
+
+    Args:
+        db: 当前活跃的异步会话。
+        word: 待更新的 :class:`WordCollection` 实例。
+
+    Returns:
+        更新后并刷新属性的 :class:`WordCollection`。
+    """
+    word.study_count += 1
+    word.last_studied_at = datetime.now(timezone.utc)
+    word.mastery_level = MasteryLevel.mastered
     await db.flush()
     await db.refresh(word)
     return word
