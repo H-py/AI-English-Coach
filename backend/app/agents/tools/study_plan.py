@@ -10,6 +10,7 @@
 与文章推荐的数据工具（``recommend.py``）保持同一套结构。
 """
 
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +23,16 @@ from app.modules.word_bank.repository import get_levels_for_words
 PLAN_WORDS_CAP = 200
 # LLM 清单中释义的截断长度。
 _PLAN_EXPLANATION_MAX_CHARS = 60
+
+
+def _last_studied_label(word) -> str:
+    """把上次学习时间整理成相对描述（N 天前 / 今天 / 从未学习），便于 LLM 判断。"""
+    if not word.last_studied_at:
+        return "从未学习"
+    days = (datetime.now(timezone.utc) - word.last_studied_at).days
+    if days <= 0:
+        return "今天"
+    return f"{days} 天前"
 
 
 def _serialize_word(word) -> dict:
@@ -116,14 +127,10 @@ class ListSavedWordsTool(BaseTool):
             explanation = (w.short_meaning or w.ai_explanation or "")[
                 :_PLAN_EXPLANATION_MAX_CHARS
             ]
-            last_studied = (
-                f"上次学习 {w.last_studied_at:%Y-%m-%d}"
-                if w.last_studied_at
-                else "从未学习"
-            )
             lines.append(
-                f"{w.id}. {w.word}（掌握:{w.mastery_level.value}，"
-                f"学习{w.study_count}次，{last_studied}）释义:{explanation}"
+                f"{w.id}. {w.word}（学{w.study_count}次 · "
+                f"上次学习{_last_studied_label(w)} · 掌握:{w.mastery_level.value}）"
+                f"释义:{explanation}"
             )
             words.append(_serialize_word(w))
 

@@ -5,7 +5,14 @@ import axios, {
 } from 'axios'
 import { createDiscreteApi } from 'naive-ui'
 import type { ResponseResult } from '@/types/api'
-import { getAccessToken, clearAllAuthData } from '@/utils'
+import type { TokenResponse } from '@/types/auth'
+import {
+  getAccessToken,
+  getRefreshToken,
+  setAccessToken,
+  setRefreshToken,
+  clearAllAuthData
+} from '@/utils'
 
 /**
  * Naive UI 的 message 等离散 API 需要在 Provider 树内使用，
@@ -20,6 +27,12 @@ const CODE_AUTH_ERROR = 20000
 /** 是否已触发登录态失效跳转，避免并发请求重复处理 */
 let sessionExpiredHandled = false
 
+/** 正在进行的 access token 刷新（并发 401 时共享，只发起一次刷新请求） */
+let refreshPromise: Promise<string | null> | null = null
+
+/** 请求配置扩展：`_retry` 标记该请求已重放过一次，或本身就是 refresh 请求 */
+type RetriableConfig = InternalAxiosRequestConfig & { _retry?: boolean }
+
 /** 是否正停留在登录页（正在尝试登录，401 应视为账号密码错误而非会话过期） */
 function isOnLoginPage(): boolean {
   return window.location.pathname.replace(/\/+$/, '') === '/login'
@@ -31,6 +44,42 @@ function handleSessionExpired(): void {
   sessionExpiredHandled = true
   clearAllAuthData()
   window.location.replace('/login?session_expired=1')
+}
+
+/**
+ * 用 refresh token 换取新的 access token，并写回本地存储。
+ *
+ * 并发请求同时 401 时共享同一次刷新（只发一次 `/auth/refresh`）。
+ * 成功返回新 access token；无 refresh token 或刷新失败时清除登录态并返回 null。
+ */
+async function refreshAccessToken(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = (async () => {
+    const refreshToken = getRefreshToken()
+    if (!refreshToken) {
+      clearAllAuthData()
+      return null
+    }
+    try {
+      // `_retry: true` 标记，使 refresh 请求自身的 401 不会再次进入刷新逻辑
+      const data = (await request.post(
+        '/auth/refresh',
+        { refresh_token: refreshToken },
+        { _retry: true } as RetriableConfig
+      )) as unknown as TokenResponse
+      setAccessToken(data.access_token)
+      setRefreshToken(data.refresh_token)
+      return data.access_token
+    } catch {
+      clearAllAuthData()
+      return null
+    } finally {
+      refreshPromise = null
+    }
+  })()
+
+  return refreshPromise
 }
 
 const request: AxiosInstance = axios.create({
@@ -70,10 +119,27 @@ request.interceptors.response.use(
     const envelope = error?.response?.data as Partial<ResponseResult> | undefined
 
     // 登录态失效：HTTP 401 或信封携带认证错误码（token 过期/无效）。
-    // 已停留在登录页时不做跳转，走下方统一提示（避免把"邮箱或密码错误"误判为会话过期）。
+    // 已停留在登录页时不做续期/跳转，走下方统一提示（避免把"邮箱或密码错误"误判为会话过期）。
     if ((status === 401 || envelope?.code === CODE_AUTH_ERROR) && !isOnLoginPage()) {
-      handleSessionExpired()
-      return Promise.reject(error)
+      const config = error?.config as RetriableConfig | undefined
+
+      // refresh 请求自身 401，或原请求已重放过一次仍 401 → 登录态彻底失效
+      if (!config || config._retry) {
+        handleSessionExpired()
+        return Promise.reject(error)
+      }
+
+      // 静默续期 access token 并重放原请求
+      return refreshAccessToken().then((token) => {
+        if (!token) {
+          handleSessionExpired()
+          return Promise.reject(error)
+        }
+        config._retry = true
+        config.headers = config.headers ?? {}
+        config.headers.Authorization = `Bearer ${token}`
+        return request(config)
+      })
     }
 
     // 优先使用后端信封里的 message，其次 axios 错误信息
