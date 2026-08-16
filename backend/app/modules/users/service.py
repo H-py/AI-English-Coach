@@ -50,7 +50,7 @@ async def get_user_profile(db: AsyncSession, user_id: int) -> UserOut:
     """
     user = await get_user_by_id(db, user_id)
     if user is None:
-        raise BizException("user not found", code=USER_NOT_FOUND_CODE)
+        raise BizException("用户不存在", code=USER_NOT_FOUND_CODE)
     return UserOut.model_validate(user)
 
 
@@ -76,7 +76,7 @@ async def update_profile(
     """
     user = await get_user_by_id(db, user_id)
     if user is None:
-        raise BizException("user not found", code=USER_NOT_FOUND_CODE)
+        raise BizException("用户不存在", code=USER_NOT_FOUND_CODE)
 
     update_data = data.model_dump(exclude_unset=True)
 
@@ -86,7 +86,7 @@ async def update_profile(
         existing = await get_user_by_username(db, new_username)
         if existing is not None:
             raise BizException(
-                "username already taken", code=USERNAME_ALREADY_TAKEN_CODE
+                "该用户名已被占用", code=USERNAME_ALREADY_TAKEN_CODE
             )
 
     if update_data:
@@ -112,10 +112,10 @@ async def update_password(
     """
     user = await get_user_by_id(db, user_id)
     if user is None:
-        raise BizException("user not found", code=USER_NOT_FOUND_CODE)
+        raise BizException("用户不存在", code=USER_NOT_FOUND_CODE)
 
     if not verify_password(data.old_password, user.password_hash):
-        raise BizException("wrong old password", code=WRONG_OLD_PASSWORD_CODE)
+        raise BizException("原密码错误", code=WRONG_OLD_PASSWORD_CODE)
 
     await update_user(
         db, user, {"password_hash": hash_password(data.new_password)}
@@ -144,7 +144,7 @@ async def upload_avatar(
     """
     user = await get_user_by_id(db, user_id)
     if user is None:
-        raise BizException("user not found", code=USER_NOT_FOUND_CODE)
+        raise BizException("用户不存在", code=USER_NOT_FOUND_CODE)
 
     ext = _ALLOWED_AVATAR_TYPES.get(file.content_type)
     if ext is None:

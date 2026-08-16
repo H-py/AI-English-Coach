@@ -23,6 +23,8 @@ export interface WordCollection {
   last_studied_at: string | null
   created_at: string
   updated_at: string
+  /** 分级词库中的等级（如 ['cet4', 'kaoyan']），后端派生填充 */
+  levels: string[]
 }
 
 /** 一次背诵方案：有序单词序列 + 背诵建议 + 来源标记 */

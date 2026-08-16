@@ -102,7 +102,7 @@ export async function streamAgent(
         if (event.type === 'done') {
           finish()
         } else if (event.type === 'error') {
-          callbacks.onError?.(event.message || 'Unknown error')
+          callbacks.onError?.(event.message || '未知错误')
         }
       } catch {
         // 跳过无法解析的行（可能是心跳或不完整帧）

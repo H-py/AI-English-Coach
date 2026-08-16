@@ -62,8 +62,8 @@ request.interceptors.response.use(
     }
 
     // 业务错误：用 message 提示并 reject
-    message.error(res.message || 'Request failed')
-    return Promise.reject(new Error(res.message || 'Request failed'))
+    message.error(res.message || '请求失败')
+    return Promise.reject(new Error(res.message || '请求失败'))
   },
   (error) => {
     const status = error?.response?.status
@@ -78,7 +78,7 @@ request.interceptors.response.use(
 
     // 优先使用后端信封里的 message，其次 axios 错误信息
     const msg =
-      envelope?.message || error?.message || 'Network error, please try again later'
+      envelope?.message || error?.message || '网络异常，请稍后重试'
     message.error(msg)
     return Promise.reject(error)
   }

@@ -49,6 +49,9 @@ class WordCollectionOut(BaseModel):
     last_studied_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    # 派生字段：该词在分级词库中归属的等级（如 ["cet4", "kaoyan"]）。
+    # 由服务层批量查询词库后填充，ORM 序列化时默认为空列表。
+    levels: list[str] = Field(default_factory=list)
 
 
 class WordCollectionUpdate(BaseModel):

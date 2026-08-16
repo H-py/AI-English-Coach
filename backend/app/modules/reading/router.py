@@ -127,9 +127,12 @@ async def get_study_plan_endpoint(
     db: DbSession,
     current_user: CurrentUser,
     count: int = Query(default=10, ge=1, le=50),
+    level: Optional[str] = Query(default=None),
 ) -> dict:
     """生成一次生词背诵方案（AI 选词 + 顺序 + 建议；失败降级为规则）。"""
-    result = await get_vocabulary_study_plan(db, current_user, count)
+    result = await get_vocabulary_study_plan(
+        db, current_user, count, level=level
+    )
     return success(result)
 
 

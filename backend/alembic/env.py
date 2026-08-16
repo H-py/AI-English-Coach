@@ -27,6 +27,7 @@ import app.modules.article.models  # noqa: F401
 import app.modules.reading.models  # noqa: F401
 import app.modules.ai.models  # noqa: F401
 import app.modules.llm_config.models  # noqa: F401
+import app.modules.word_bank.models  # noqa: F401
 import app.agents.modules.models  # noqa: F401
 
 config = context.config

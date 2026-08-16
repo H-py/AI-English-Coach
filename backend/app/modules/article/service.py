@@ -109,7 +109,7 @@ async def get_article_detail(
     """
     article = await repo_get_article_by_id(db, article_id)
     if article is None:
-        raise BizException("article not found", code=ARTICLE_NOT_FOUND_CODE)
+        raise BizException("文章不存在", code=ARTICLE_NOT_FOUND_CODE)
 
     # 在增加浏览次数之前先序列化文章。``increment_view_count`` repository
     # 方法会发出一条 Core ``UPDATE`` 语句，这会导致 SQLAlchemy 让会话中
@@ -146,7 +146,7 @@ async def get_article_neighbors(
     """
     article = await repo_get_article_by_id(db, article_id)
     if article is None:
-        raise BizException("article not found", code=ARTICLE_NOT_FOUND_CODE)
+        raise BizException("文章不存在", code=ARTICLE_NOT_FOUND_CODE)
 
     prev, nxt = await repo_get_article_neighbors(db, article_id)
     return ArticleNeighborsOut(
@@ -194,7 +194,7 @@ async def update_article(
     """
     article = await repo_get_article_by_id(db, article_id)
     if article is None:
-        raise BizException("article not found", code=ARTICLE_NOT_FOUND_CODE)
+        raise BizException("文章不存在", code=ARTICLE_NOT_FOUND_CODE)
 
     update_data = data.model_dump(exclude_unset=True)
 
@@ -223,7 +223,7 @@ async def delete_article(db: AsyncSession, article_id: int) -> None:
     """
     article = await repo_get_article_by_id(db, article_id)
     if article is None:
-        raise BizException("article not found", code=ARTICLE_NOT_FOUND_CODE)
+        raise BizException("文章不存在", code=ARTICLE_NOT_FOUND_CODE)
 
     await repo_delete_article(db, article)
 

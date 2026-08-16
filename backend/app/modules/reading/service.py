@@ -10,11 +10,12 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.vocabulary_planner import VocabularyPlanner
-from app.core.exceptions import BizException
+from app.core.exceptions import BizException, CODE_VALIDATION_ERROR
 from app.modules.article.models import Article
 from app.modules.article.repository import get_article_by_id
 from app.modules.reading import repository as repo
 from app.modules.reading.models import MasteryLevel
+from app.modules.word_bank.models import WordLevel
 from app.modules.reading.schemas import (
     ReadingHistoryCreate,
     ReadingHistoryOut,
@@ -32,6 +33,7 @@ from app.modules.reading.schemas import (
     WordListResponse,
 )
 from app.modules.users.models import User
+from app.modules.word_bank.repository import get_levels_for_words
 
 # ---- 业务错误码 -------------------------------------------------------------
 # 文章未找到（与文章模块的错误码共用）。
@@ -62,11 +64,28 @@ async def _get_article_or_raise(
     """
     article = await get_article_by_id(db, article_id)
     if article is None:
-        raise BizException("article not found", code=ARTICLE_NOT_FOUND_CODE)
+        raise BizException("文章不存在", code=ARTICLE_NOT_FOUND_CODE)
     return article
 
 
 # ---- 单词收藏服务 ----------------------------------------------------------
+
+
+async def _attach_levels(
+    db: AsyncSession, outs: list[WordCollectionOut]
+) -> list[WordCollectionOut]:
+    """批量查询分级词库并填充 ``WordCollectionOut.levels``。
+
+    等级为派生字段，由词库（``word_bank``）按单词批量查询后写入，
+    避免逐个查询。未收录的词等级为空列表。
+    """
+    if not outs:
+        return outs
+    words = [out.word.strip().lower() for out in outs]
+    levels = await get_levels_for_words(db, words)
+    for out in outs:
+        out.levels = levels.get(out.word.strip().lower(), [])
+    return outs
 
 
 def extract_short_meaning(expl: Optional[str]) -> Optional[str]:
@@ -205,7 +224,9 @@ async def save_word(
         ai_explanation=data.ai_explanation,
         short_meaning=short_meaning,
     )
-    return WordCollectionOut.model_validate(word)
+    out = WordCollectionOut.model_validate(word)
+    await _attach_levels(db, [out])
+    return out
 
 
 async def list_words(
@@ -232,10 +253,9 @@ async def list_words(
     items, total = await repo.list_words(
         db, user_id, page, page_size, mastery_level, search
     )
-    return WordListResponse(
-        items=[WordCollectionOut.model_validate(w) for w in items],
-        total=total,
-    )
+    items_out = [WordCollectionOut.model_validate(w) for w in items]
+    await _attach_levels(db, items_out)
+    return WordListResponse(items=items_out, total=total)
 
 
 async def update_word_mastery(
@@ -261,12 +281,14 @@ async def update_word_mastery(
     """
     word = await repo.get_word(db, user_id, word_id)
     if word is None:
-        raise BizException("word not found", code=WORD_NOT_FOUND_CODE)
+        raise BizException("单词不存在", code=WORD_NOT_FOUND_CODE)
 
     update_data = data.model_dump(exclude_unset=True)
     if update_data:
         word = await repo.update_word(db, word, update_data)
-    return WordCollectionOut.model_validate(word)
+    out = WordCollectionOut.model_validate(word)
+    await _attach_levels(db, [out])
+    return out
 
 
 async def mark_word_studied(
@@ -290,13 +312,15 @@ async def mark_word_studied(
     """
     word = await repo.get_word(db, user_id, word_id)
     if word is None:
-        raise BizException("word not found", code=WORD_NOT_FOUND_CODE)
+        raise BizException("单词不存在", code=WORD_NOT_FOUND_CODE)
     word = await repo.increment_word_study(db, word)
-    return WordCollectionOut.model_validate(word)
+    out = WordCollectionOut.model_validate(word)
+    await _attach_levels(db, [out])
+    return out
 
 
 async def get_vocabulary_study_plan(
-    db: AsyncSession, user: User, count: int
+    db: AsyncSession, user: User, count: int, level: Optional[str] = None
 ) -> VocabularyPlanOut:
     """生成一次生词背诵方案（有序选词 + 背诵建议）。
 
@@ -307,16 +331,24 @@ async def get_vocabulary_study_plan(
         db: 当前活跃的异步会话。
         user: 已认证用户。
         count: 本次要背诵的单词数量。
+        level: 可选，按分级词库等级过滤（如 ``cet4``）；None 为全部。
 
     Returns:
         有序的单词序列与背诵建议的 :class:`VocabularyPlanOut`。
+
+    Raises:
+        BizException: 若 ``level`` 非法（错误码 ``10000``）。
     """
-    result = await VocabularyPlanner().plan(db, user, count)
+    if level is not None and level not in {lv.value for lv in WordLevel}:
+        raise BizException(f"无效的词汇等级：{level}", code=CODE_VALIDATION_ERROR)
+
+    result = await VocabularyPlanner().plan(db, user, count, level=level)
     words = [
         WordCollectionOut.model_validate(result.words_by_id[i])
         for i in result.word_ids
         if i in result.words_by_id
     ]
+    await _attach_levels(db, words)
     return VocabularyPlanOut(
         words=words,
         note=result.note,
@@ -339,7 +371,7 @@ async def remove_word(db: AsyncSession, user_id: int, word_id: int) -> None:
     """
     word = await repo.get_word(db, user_id, word_id)
     if word is None:
-        raise BizException("word not found", code=WORD_NOT_FOUND_CODE)
+        raise BizException("单词不存在", code=WORD_NOT_FOUND_CODE)
     await repo.delete_word(db, word)
 
 
@@ -410,7 +442,7 @@ async def remove_sentence(
     """
     sentence = await repo.get_sentence(db, user_id, sentence_id)
     if sentence is None:
-        raise BizException("sentence not found", code=SENTENCE_NOT_FOUND_CODE)
+        raise BizException("句子不存在", code=SENTENCE_NOT_FOUND_CODE)
     await repo.delete_sentence(db, sentence)
 
 
@@ -437,7 +469,7 @@ async def update_sentence_note(
     """
     sentence = await repo.get_sentence(db, user_id, sentence_id)
     if sentence is None:
-        raise BizException("sentence not found", code=SENTENCE_NOT_FOUND_CODE)
+        raise BizException("句子不存在", code=SENTENCE_NOT_FOUND_CODE)
 
     update_data = data.model_dump(exclude_unset=True)
     if update_data:
@@ -495,7 +527,7 @@ async def end_reading(
     """
     history = await repo.get_history(db, user_id, history_id)
     if history is None:
-        raise BizException("history not found", code=HISTORY_NOT_FOUND_CODE)
+        raise BizException("阅读记录不存在", code=HISTORY_NOT_FOUND_CODE)
 
     update_data = data.model_dump(exclude_unset=True)
     if update_data:

@@ -52,7 +52,7 @@ async def _get_or_raise(
     """按 id + user_id 取配置，不存在时抛业务异常。"""
     config = await repo.get_config(db, config_id, user_id)
     if config is None:
-        raise BizException("model config not found", code=CONFIG_NOT_FOUND_CODE)
+        raise BizException("模型配置不存在", code=CONFIG_NOT_FOUND_CODE)
     return config
 
 
@@ -133,7 +133,7 @@ async def activate_config(
     """把指定配置设为当前使用中的模型。"""
     config = await repo.activate_config(db, config_id, user_id)
     if config is None:
-        raise BizException("model config not found", code=CONFIG_NOT_FOUND_CODE)
+        raise BizException("模型配置不存在", code=CONFIG_NOT_FOUND_CODE)
     return _to_out(config)
 
 

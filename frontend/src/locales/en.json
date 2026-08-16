@@ -117,6 +117,7 @@
     "aiRecite": "AI Recite",
     "reciteTitle": "AI Recitation",
     "reciteCountLabel": "How many words for this session?",
+    "reciteLevelLabel": "Word level (optional)",
     "reciteStart": "Start",
     "reciteProgress": "Word {cur} / {total}",
     "reciteHint": "Remembered moves on; forgot reviews later",
@@ -157,6 +158,12 @@
     "sentenceDeleted": "Sentence deleted",
     "noteUpdated": "Note updated",
     "totalSentences": "{count} sentences"
+  },
+  "wordLevel": {
+    "cet4": "CET-4",
+    "cet6": "CET-6",
+    "kaoyan": "Kaoyan",
+    "all": "All"
   },
   "history": {
     "title": "Reading History",

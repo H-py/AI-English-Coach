@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.tools.base import BaseTool, ToolParameter, ToolResult
 from app.modules.reading.repository import list_words
+from app.modules.word_bank.repository import get_levels_for_words
 
 # 参与背诵规划的单词上限（最新收藏优先）。
 PLAN_WORDS_CAP = 200
@@ -57,13 +58,25 @@ class ListSavedWordsTool(BaseTool):
 
     @property
     def parameters(self) -> list[ToolParameter]:
-        return []
+        return [
+            ToolParameter(
+                name="level",
+                type="string",
+                description=(
+                    "可选，按分级词库等级过滤收藏单词。可选值："
+                    "cet4（四级）、cet6（六级）、kaoyan（考研）。"
+                    "不传则返回全部收藏单词。"
+                ),
+                required=False,
+            ),
+        ]
 
     async def execute(self, **kwargs: Any) -> ToolResult:
         """执行收藏单词查询。
 
         Args:
-            **kwargs: 包含 ``db``、``user_id``（隐式注入），无显式参数。
+            **kwargs: 包含 ``db``、``user_id``（隐式注入）以及可选的
+                ``level``（显式参数，按分级词库等级过滤）。
 
         Returns:
             :class:`ToolResult`，``content`` 为单词清单文本，
@@ -71,6 +84,7 @@ class ListSavedWordsTool(BaseTool):
         """
         db: AsyncSession = kwargs["db"]
         user_id: int = kwargs["user_id"]
+        level_filter: str | None = kwargs.get("level")
 
         items, total = await list_words(
             db, user_id, page=1, page_size=PLAN_WORDS_CAP
@@ -81,6 +95,18 @@ class ListSavedWordsTool(BaseTool):
                 content="用户还没有收藏任何单词。",
                 data={"words": [], "total": 0},
             )
+
+        # 按分级词库等级过滤（只保留命中该等级的收藏词）。
+        if level_filter:
+            items = await self._filter_by_level(db, items, level_filter)
+            if not items:
+                return ToolResult(
+                    success=True,
+                    content=(
+                        f"用户收藏中没有属于等级 '{level_filter}' 的单词。"
+                    ),
+                    data={"words": [], "total": 0},
+                )
 
         lines: list[str] = [
             f"用户共收藏 {total} 个单词（显示最新 {len(items)} 个）：\n"
@@ -106,3 +132,12 @@ class ListSavedWordsTool(BaseTool):
             content="\n".join(lines),
             data={"words": words, "total": total},
         )
+
+    @staticmethod
+    async def _filter_by_level(
+        db: AsyncSession, items: list, level: str
+    ) -> list:
+        """从收藏词中筛出分级词库中命中指定等级的单词。"""
+        words = [w.word.strip().lower() for w in items]
+        levels = await get_levels_for_words(db, words)
+        return [w for w in items if level in levels.get(w.word.strip().lower(), [])]

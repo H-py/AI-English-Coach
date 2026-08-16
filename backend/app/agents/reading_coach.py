@@ -1,13 +1,14 @@
 """阅读教练 Agent —— 第一个具体的 Agent 实现。
 
 继承自 :class:`~app.agents.base.BaseAgent`，使用 ReAct 推理模式。
-集成了词汇、阅读、画像和记忆四类共 9 个工具，使 Agent 能够全面了解
-用户的学习状况并给出个性化的英语阅读辅导。
+集成了词汇、阅读、画像、词库和记忆五类共 10 个工具，使 Agent 能够
+全面了解用户的学习状况并给出个性化的英语阅读辅导。
 
 工具列表：
     - ``search_vocabulary``: 搜索收藏的单词。
     - ``get_word_detail``: 获取单个单词详情。
     - ``get_all_vocabulary``: 获取全部收藏单词（按掌握程度分组）。
+    - ``lookup_word_level``: 查询单词在分级词库中的等级与释义。
     - ``get_reading_history``: 获取阅读历史。
     - ``get_article_content``: 获取文章内容。
     - ``get_sentence_collection``: 获取收藏的句子。
@@ -35,6 +36,7 @@ from app.agents.tools.vocabulary import (
     GetWordDetailTool,
     SearchVocabularyTool,
 )
+from app.agents.tools.word_bank import LookupWordLevelTool
 from app.core.ai.prompt_manager import load_prompt
 from app.core.ai.provider import LLMProvider
 
@@ -62,7 +64,7 @@ class ReadingCoachAgent(BaseAgent):
         """初始化阅读教练 Agent。
 
         调用父类构造函数完成基础设置，然后构建工具注册表，注册全部
-        8 个工具。
+        10 个工具。
 
         Args:
             db: 当前请求的异步数据库会话。
@@ -82,6 +84,8 @@ class ReadingCoachAgent(BaseAgent):
         self._registry.register(SearchVocabularyTool())
         self._registry.register(GetWordDetailTool())
         self._registry.register(GetAllVocabularyTool())
+        # 分级词库查询工具。
+        self._registry.register(LookupWordLevelTool())
         # 阅读数据工具。
         self._registry.register(GetReadingHistoryTool())
         self._registry.register(GetArticleContentTool())

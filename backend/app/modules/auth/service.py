@@ -63,9 +63,9 @@ async def register(db: AsyncSession, data: RegisterRequest) -> LoginResponse:
             或用户名已被占用（错误码 ``20002``）。
     """
     if await get_user_by_email(db, data.email):
-        raise BizException("email already registered", code=EMAIL_ALREADY_REGISTERED_CODE)
+        raise BizException("该邮箱已被注册", code=EMAIL_ALREADY_REGISTERED_CODE)
     if await get_user_by_username(db, data.username):
-        raise BizException("username already taken", code=USERNAME_ALREADY_TAKEN_CODE)
+        raise BizException("该用户名已被占用", code=USERNAME_ALREADY_TAKEN_CODE)
 
     user = await create_user(
         db, data.email, data.username, hash_password(data.password)
@@ -102,13 +102,13 @@ async def login(db: AsyncSession, data: LoginRequest) -> LoginResponse:
     user = await get_user_by_email(db, data.email)
     if user is None or not verify_password(data.password, user.password_hash):
         raise BizException(
-            "invalid email or password",
+            "邮箱或密码错误",
             code=INVALID_CREDENTIALS_CODE,
             http_status=401,
         )
     if not user.is_active:
         raise BizException(
-            "account is disabled", code=ACCOUNT_DISABLED_CODE, http_status=401
+            "账号已被禁用", code=ACCOUNT_DISABLED_CODE, http_status=401
         )
 
     access_token = create_access_token(user.id)
@@ -145,7 +145,7 @@ async def refresh_token(db: AsyncSession, data: RefreshRequest) -> TokenResponse
     user = await get_user_by_id(db, user_id)
     if user is None:
         raise BizException(
-            "user not found", code=USER_NOT_FOUND_CODE, http_status=401
+            "用户不存在", code=USER_NOT_FOUND_CODE, http_status=401
         )
 
     access_token = create_access_token(user.id)

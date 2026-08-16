@@ -93,7 +93,7 @@ export function useReading() {
           },
           onError: (error) => {
             if (isCurrent()) {
-              aiContent.value += `\n\n> Error: ${error}`
+              aiContent.value += `\n\n> 错误：${error}`
               streaming.value = false
             }
           }
@@ -104,7 +104,7 @@ export function useReading() {
       if (isCurrent()) {
         // AbortError 是主动取消，不显示错误
         if ((e as Error).name !== 'AbortError') {
-          aiContent.value += `\n\n> Error: ${(e as Error).message}`
+          aiContent.value += `\n\n> 错误：${(e as Error).message}`
         }
         streaming.value = false
       }
@@ -148,7 +148,7 @@ export function useReading() {
           },
           onError: (error) => {
             if (isCurrent()) {
-              aiContent.value += `\n\n> Error: ${error}`
+              aiContent.value += `\n\n> 错误：${error}`
               streaming.value = false
             }
           }
@@ -158,7 +158,7 @@ export function useReading() {
     } catch (e) {
       if (isCurrent()) {
         if ((e as Error).name !== 'AbortError') {
-          aiContent.value += `\n\n> Error: ${(e as Error).message}`
+          aiContent.value += `\n\n> 错误：${(e as Error).message}`
         }
         streaming.value = false
       }
@@ -202,7 +202,7 @@ export function useReading() {
           },
           onError: (error) => {
             if (isCurrent()) {
-              aiContent.value += `\n\n> Error: ${error}`
+              aiContent.value += `\n\n> 错误：${error}`
               streaming.value = false
             }
           }
@@ -212,7 +212,7 @@ export function useReading() {
     } catch (e) {
       if (isCurrent()) {
         if ((e as Error).name !== 'AbortError') {
-          aiContent.value += `\n\n> Error: ${(e as Error).message}`
+          aiContent.value += `\n\n> 错误：${(e as Error).message}`
         }
         streaming.value = false
       }
@@ -254,7 +254,7 @@ export function useReading() {
           },
           onError: (error) => {
             if (isCurrent()) {
-              aiContent.value += `\n\n> Error: ${error}`
+              aiContent.value += `\n\n> 错误：${error}`
               streaming.value = false
             }
           }
@@ -264,7 +264,7 @@ export function useReading() {
     } catch (e) {
       if (isCurrent()) {
         if ((e as Error).name !== 'AbortError') {
-          aiContent.value += `\n\n> Error: ${(e as Error).message}`
+          aiContent.value += `\n\n> 错误：${(e as Error).message}`
         }
         streaming.value = false
       }
@@ -320,7 +320,7 @@ export function useReading() {
             if (!isCurrent()) return
             const last = chatMessages.value[chatMessages.value.length - 1]
             if (last && last.role === 'assistant') {
-              last.content += `\n\n> Error: ${error}`
+              last.content += `\n\n> 错误：${error}`
             }
             streaming.value = false
           }
@@ -332,7 +332,7 @@ export function useReading() {
         if ((e as Error).name !== 'AbortError') {
           const last = chatMessages.value[chatMessages.value.length - 1]
           if (last && last.role === 'assistant') {
-            last.content += `\n\n> Error: ${(e as Error).message}`
+            last.content += `\n\n> 错误：${(e as Error).message}`
           }
         }
         streaming.value = false

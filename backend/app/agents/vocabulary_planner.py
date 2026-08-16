@@ -77,7 +77,11 @@ class VocabularyPlanner:
         self._provider = provider
 
     async def plan(
-        self, db: AsyncSession, user: User, count: int
+        self,
+        db: AsyncSession,
+        user: User,
+        count: int,
+        level: Optional[str] = None,
     ) -> VocabularyPlanResult:
         """生成一次背诵方案（有序选词 + 建议）。
 
@@ -85,11 +89,12 @@ class VocabularyPlanner:
             db: 当前活跃的异步会话。
             user: 已认证用户（提供英语水平与 id）。
             count: 本次要背诵的单词数量。
+            level: 可选，按分级词库等级过滤（如 ``cet4``）；None 为全部。
 
         Returns:
             :class:`VocabularyPlanResult`。
         """
-        profile_result, words_result = await self._gather(db, user.id)
+        profile_result, words_result = await self._gather(db, user.id, level)
         words = words_result.data.get("words", [])
         if not words:
             return VocabularyPlanResult(
@@ -139,10 +144,14 @@ class VocabularyPlanner:
             return self.rule_based(level, words_by_id, count)
 
     async def rule_only(
-        self, db: AsyncSession, user: User, count: int
+        self,
+        db: AsyncSession,
+        user: User,
+        count: int,
+        level: Optional[str] = None,
     ) -> VocabularyPlanResult:
         """只走规则选词（负缓存命中时用），跳过 LLM 调用。"""
-        _, words_result = await self._gather(db, user.id)
+        _, words_result = await self._gather(db, user.id, level)
         words = words_result.data.get("words", [])
         if not words:
             return VocabularyPlanResult(
@@ -152,14 +161,17 @@ class VocabularyPlanner:
         return self.rule_based(user.english_level.value, words_by_id, count)
 
     async def _gather(
-        self, db: AsyncSession, user_id: int
+        self,
+        db: AsyncSession,
+        user_id: int,
+        level: Optional[str] = None,
     ) -> tuple[ToolResult, ToolResult]:
         """调用数据工具收集上下文（画像 + 收藏单词）。"""
         profile_result = await GetUserProfileTool().execute(
             db=db, user_id=user_id
         )
         words_result = await ListSavedWordsTool().execute(
-            db=db, user_id=user_id
+            db=db, user_id=user_id, level=level
         )
         return profile_result, words_result
 

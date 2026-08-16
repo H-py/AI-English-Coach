@@ -123,7 +123,7 @@ export function useAgent() {
               break
 
             case 'error':
-              agentError.value = event.message || 'Unknown error'
+              agentError.value = event.message || '未知错误'
               break
 
             case 'done':

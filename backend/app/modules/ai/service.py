@@ -53,6 +53,8 @@ from app.modules.article.models import Article
 from app.modules.article.repository import get_article_by_id
 from app.modules.reading import repository as reading_repo
 from app.modules.users.models import User
+from app.modules.word_bank.labels import WORD_LEVEL_LABELS
+from app.modules.word_bank.repository import lookup_word
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +106,7 @@ async def _get_article_or_raise(
     """
     article = await get_article_by_id(db, article_id)
     if article is None:
-        raise BizException("article not found", code=ARTICLE_NOT_FOUND_CODE)
+        raise BizException("文章不存在", code=ARTICLE_NOT_FOUND_CODE)
     return article
 
 
@@ -174,12 +176,21 @@ async def explain_word(
         return
 
     # 缓存未命中 —— 从 LLM 流式获取并缓存完整响应。
+    # 查询分级词库，标注词汇等级（如四级/六级/考研）；未命中则为 None。
+    word_info = await lookup_word(db, data.word)
+    word_levels = None
+    if word_info and word_info["levels"]:
+        word_levels = "、".join(
+            WORD_LEVEL_LABELS.get(lv, lv) for lv in word_info["levels"]
+        )
+
     system_prompt = load_system_prompt("coach")
     user_prompt = load_reading_prompt(
         "explain_word",
         word=data.word,
         context=data.context,
         level=level,
+        word_levels=word_levels,
     )
     messages = [
         ChatMessage("system", system_prompt),
@@ -501,7 +512,7 @@ async def generate_summary(
     # 获取阅读历史记录。
     history = await reading_repo.get_history(db, user.id, data.history_id)
     if history is None:
-        raise BizException("history not found", code=HISTORY_NOT_FOUND_CODE)
+        raise BizException("阅读记录不存在", code=HISTORY_NOT_FOUND_CODE)
 
     article = await _get_article_or_raise(db, history.article_id)
 
@@ -637,7 +648,7 @@ async def generate_quiz(
     # 校验阅读历史存在。
     history = await reading_repo.get_history(db, user.id, data.history_id)
     if history is None:
-        raise BizException("history not found", code=HISTORY_NOT_FOUND_CODE)
+        raise BizException("阅读记录不存在", code=HISTORY_NOT_FOUND_CODE)
 
     # 构建提示词并调用 LLM。
     system_prompt = load_system_prompt("coach")
@@ -675,13 +686,13 @@ async def generate_quiz(
             data.article_id,
         )
         raise BizException(
-            "failed to parse quiz JSON", code=QUIZ_PARSE_ERROR_CODE
+            "测验题目解析失败", code=QUIZ_PARSE_ERROR_CODE
         )
 
     # 确保是列表格式。
     if not isinstance(questions, list) or not questions:
         raise BizException(
-            "quiz JSON is empty or not a list", code=QUIZ_PARSE_ERROR_CODE
+            "测验题目内容为空或格式错误", code=QUIZ_PARSE_ERROR_CODE
         )
 
     # 持久化练习题。
@@ -733,7 +744,7 @@ async def submit_quiz(
     """
     quiz = await repo.get_quiz(db, user_id, quiz_id)
     if quiz is None:
-        raise BizException("quiz not found", code=QUIZ_NOT_FOUND_CODE)
+        raise BizException("测验不存在", code=QUIZ_NOT_FOUND_CODE)
 
     # 构建题目 id -> 题目的映射。
     question_map: dict[int, dict] = {}

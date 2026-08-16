@@ -59,8 +59,8 @@ export const readingApi = {
   },
 
   /** 获取一次 AI 背诵方案（有序选词 + 建议；失败降级为规则） */
-  getStudyPlan(count: number): Promise<VocabularyPlan> {
-    return http.get('/reading/study-plan', { params: { count } })
+  getStudyPlan(count: number, level?: string): Promise<VocabularyPlan> {
+    return http.get('/reading/study-plan', { params: { count, level } })
   },
 
   // ---- 句子收藏 ----

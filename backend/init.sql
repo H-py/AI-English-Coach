@@ -536,6 +536,34 @@ CREATE TRIGGER trg_user_llm_configs_updated_at
     EXECUTE FUNCTION update_updated_at();
 
 -- ------------------------------------------------------------
+-- 22. word_bank 表（词库单词）
+-- ------------------------------------------------------------
+-- 对应 backend/app/modules/word_bank/models.py 中的 WordBank 模型
+CREATE TABLE IF NOT EXISTS word_bank (
+    id       BIGINT        GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    word     VARCHAR(255)  NOT NULL UNIQUE,
+    phonetic VARCHAR(255),
+    meaning  TEXT
+);
+
+-- 索引
+CREATE INDEX IF NOT EXISTS ix_word_bank_word ON word_bank (word);
+
+-- ------------------------------------------------------------
+-- 23. word_bank_levels 表（词库单词等级归属）
+-- ------------------------------------------------------------
+-- 对应 backend/app/modules/word_bank/models.py 中的 WordBankLevel 模型
+-- 一个词可属多个等级（四级/六级/考研词高度重叠）
+CREATE TABLE IF NOT EXISTS word_bank_levels (
+    word_id BIGINT       NOT NULL REFERENCES word_bank(id) ON DELETE CASCADE,
+    level   VARCHAR(20)  NOT NULL,
+    PRIMARY KEY (word_id, level)
+);
+
+-- 索引
+CREATE INDEX IF NOT EXISTS ix_word_bank_levels_level ON word_bank_levels (level);
+
+-- ------------------------------------------------------------
 -- 20. 验证查询
 -- ------------------------------------------------------------
 -- 执行后可运行以下语句确认表和数据：
@@ -552,3 +580,5 @@ CREATE TRIGGER trg_user_llm_configs_updated_at
 --   SELECT id, user_id, title FROM agent_conversations;
 --   SELECT id, conversation_id, agent_type, status, total_steps FROM agent_sessions;
 --   SELECT id, session_id, step_order, step_type, tool_name FROM agent_steps;
+--   SELECT id, word, meaning FROM word_bank LIMIT 5;
+--   SELECT level, COUNT(*) FROM word_bank_levels GROUP BY level ORDER BY level;

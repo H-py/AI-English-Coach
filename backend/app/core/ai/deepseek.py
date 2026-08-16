@@ -76,7 +76,7 @@ class DeepSeekProvider(LLMProvider):
                     code=USER_AI_CONFIG_ERROR_CODE,
                 )
             raise BizException(
-                "AI provider not configured",
+                "AI 服务未配置，请在系统设置中完成模型配置",
                 code=AI_NOT_CONFIGURED_CODE,
             )
 
@@ -89,7 +89,7 @@ class DeepSeekProvider(LLMProvider):
         if self._from_user_config:
             raise self._map_api_error(status_code, body)
         raise BizException(
-            f"DeepSeek API error: status={status_code}, body={body}",
+            f"AI 服务调用失败（状态码 {status_code}）：{body}",
             code=AI_API_ERROR_CODE,
         )
 

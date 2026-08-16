@@ -90,7 +90,7 @@ async def admin_get_article(
     """
     article = await repo_get_article_by_id(db, article_id)
     if article is None:
-        raise BizException("article not found", code=ARTICLE_NOT_FOUND_CODE)
+        raise BizException("文章不存在", code=ARTICLE_NOT_FOUND_CODE)
     return ArticleOut.model_validate(article)
 
 
@@ -109,7 +109,7 @@ async def admin_update_article(
     """对已有文章应用部分更新。"""
     article = await repo_get_article_by_id(db, article_id)
     if article is None:
-        raise BizException("article not found", code=ARTICLE_NOT_FOUND_CODE)
+        raise BizException("文章不存在", code=ARTICLE_NOT_FOUND_CODE)
 
     update_data = data.model_dump(exclude_unset=True)
 
@@ -128,7 +128,7 @@ async def admin_delete_article(db: AsyncSession, article_id: int) -> None:
     """根据 id 删除文章。"""
     article = await repo_get_article_by_id(db, article_id)
     if article is None:
-        raise BizException("article not found", code=ARTICLE_NOT_FOUND_CODE)
+        raise BizException("文章不存在", code=ARTICLE_NOT_FOUND_CODE)
     await repo_delete_article(db, article)
 
 
@@ -164,7 +164,7 @@ async def admin_get_user(db: AsyncSession, user_id: int) -> AdminUserOut:
     """
     user = await repo_get_user_by_id(db, user_id)
     if user is None:
-        raise BizException("user not found", code=USER_NOT_FOUND_CODE)
+        raise BizException("用户不存在", code=USER_NOT_FOUND_CODE)
     return AdminUserOut.model_validate(user)
 
 
@@ -180,7 +180,7 @@ async def admin_update_user(
     """
     user = await repo_get_user_by_id(db, user_id)
     if user is None:
-        raise BizException("user not found", code=USER_NOT_FOUND_CODE)
+        raise BizException("用户不存在", code=USER_NOT_FOUND_CODE)
 
     update_data = data.model_dump(exclude_unset=True)
 
@@ -191,7 +191,7 @@ async def admin_update_user(
         and update_data["role"] != UserRole.admin
     ):
         raise BizException(
-            "cannot demote yourself: ask another admin to change your role",
+            "不能降低自己的管理员权限，请让其他管理员操作",
             code=CANNOT_DEMOTE_LAST_ADMIN_CODE,
             http_status=403,
         )
@@ -214,14 +214,14 @@ async def admin_delete_user(
     """
     if user_id == current_user.id:
         raise BizException(
-            "cannot delete your own account",
+            "不能删除自己的账号",
             code=CANNOT_DELETE_SELF_CODE,
             http_status=403,
         )
 
     user = await repo_get_user_by_id(db, user_id)
     if user is None:
-        raise BizException("user not found", code=USER_NOT_FOUND_CODE)
+        raise BizException("用户不存在", code=USER_NOT_FOUND_CODE)
 
     await repo_delete_user(db, user)
 

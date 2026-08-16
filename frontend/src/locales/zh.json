@@ -117,6 +117,7 @@
     "aiRecite": "AI 辅助背诵",
     "reciteTitle": "AI 背诵",
     "reciteCountLabel": "本次要学习多少个单词？",
+    "reciteLevelLabel": "词汇等级（可选）",
     "reciteStart": "开始背诵",
     "reciteProgress": "第 {cur} / {total} 个",
     "reciteHint": "记住了点「记住了」，没记住会自动复习",
@@ -157,6 +158,12 @@
     "sentenceDeleted": "句子已删除",
     "noteUpdated": "笔记已更新",
     "totalSentences": "共 {count} 个句子"
+  },
+  "wordLevel": {
+    "cet4": "四级",
+    "cet6": "六级",
+    "kaoyan": "考研",
+    "all": "全部"
   },
   "history": {
     "title": "阅读历史",

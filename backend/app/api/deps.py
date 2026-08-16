@@ -48,14 +48,14 @@ async def get_current_user(
             情况均使用 ``http_status=401``。
     """
     if credentials is None:
-        raise BizException("not authenticated", code=CODE_AUTH_ERROR, http_status=401)
+        raise BizException("未登录或登录已过期", code=CODE_AUTH_ERROR, http_status=401)
     payload = verify_token(credentials.credentials, expected_type="access")
     user_id = int(payload["sub"])
     user = await get_user_by_id(db, user_id)
     if user is None:
-        raise BizException("user not found", code=CODE_AUTH_ERROR, http_status=401)
+        raise BizException("用户不存在", code=CODE_AUTH_ERROR, http_status=401)
     if not user.is_active:
-        raise BizException("account is disabled", code=CODE_AUTH_ERROR, http_status=401)
+        raise BizException("账号已被禁用", code=CODE_AUTH_ERROR, http_status=401)
     return user
 
 
@@ -80,7 +80,7 @@ async def get_admin_user(current_user: CurrentUser) -> User:
     """
     if current_user.role != UserRole.admin:
         raise BizException(
-            "forbidden: admin role required",
+            "需要管理员权限",
             code=CODE_FORBIDDEN,
             http_status=403,
         )

@@ -6,6 +6,7 @@ import {
   NTab,
   NInput,
   NInputNumber,
+  NSelect,
   NTag,
   NModal,
   NButton,
@@ -227,6 +228,15 @@ const reciteOptions = [
   { label: '15', value: 15 },
   { label: '20', value: 20 }
 ]
+/** 按分级词库等级过滤（'' 表示全部） */
+const reciteLevel = ref('')
+/** 等级筛选选项 */
+const reciteLevelOptions = computed(() => [
+  { label: t('wordLevel.all'), value: '' },
+  { label: t('wordLevel.cet4'), value: 'cet4' },
+  { label: t('wordLevel.cet6'), value: 'cet6' },
+  { label: t('wordLevel.kaoyan'), value: 'kaoyan' }
+])
 /** 生成方案中（loading） */
 const planGenerating = ref(false)
 
@@ -243,6 +253,7 @@ const currentWord = computed(() => reciteQueue.value[reciteIndex.value] ?? null)
 /** 打开背诵设置弹窗 */
 function openReciteSetup(): void {
   reciteCount.value = 10
+  reciteLevel.value = ''
   showReciteSetup.value = true
 }
 
@@ -250,7 +261,10 @@ function openReciteSetup(): void {
 async function startRecite(): Promise<void> {
   planGenerating.value = true
   try {
-    const plan = await readingApi.getStudyPlan(reciteCount.value)
+    const plan = await readingApi.getStudyPlan(
+      reciteCount.value,
+      reciteLevel.value || undefined
+    )
     if (!plan.words.length) {
       message.info(t('vocabulary.reciteEmpty'))
       showReciteSetup.value = false
@@ -610,6 +624,17 @@ onMounted(fetchWords)
               </p>
             </div>
 
+            <!-- 词汇等级徽标（来自分级词库） -->
+            <div v-if="word.levels?.length" class="mt-2 flex flex-wrap gap-1.5">
+              <span
+                v-for="lv in word.levels"
+                :key="lv"
+                class="rounded bg-blue-50 px-1.5 py-0.5 text-[11px] font-medium text-blue-600 dark:bg-blue-500/10 dark:text-blue-400"
+              >
+                {{ t(`wordLevel.${lv}`) }}
+              </span>
+            </div>
+
             <!-- 底部：快速标记按钮 -->
             <div class="mt-4 flex gap-1.5" @click.stop>
               <button
@@ -668,6 +693,17 @@ onMounted(fetchWords)
           >
             {{ masteryLabel(activeWord.mastery_level) }}
           </NTag>
+        </div>
+
+        <!-- 词汇等级徽标（来自分级词库） -->
+        <div v-if="activeWord.levels?.length" class="mt-3 flex flex-wrap gap-1.5">
+          <span
+            v-for="lv in activeWord.levels"
+            :key="lv"
+            class="rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600 dark:bg-blue-500/10 dark:text-blue-400"
+          >
+            {{ t(`wordLevel.${lv}`) }}
+          </span>
         </div>
 
         <!-- 掌握度快速切换 -->
@@ -766,6 +802,12 @@ onMounted(fetchWords)
             {{ opt.label }}
           </NButton>
         </div>
+
+        <!-- 词汇等级筛选（可选） -->
+        <p class="mb-2 mt-5 text-sm text-neutral-500 dark:text-neutral-400">
+          {{ t('vocabulary.reciteLevelLabel') }}
+        </p>
+        <NSelect v-model:value="reciteLevel" :options="reciteLevelOptions" class="w-full" />
       </div>
 
       <!-- 生成方案中的友好提示 -->

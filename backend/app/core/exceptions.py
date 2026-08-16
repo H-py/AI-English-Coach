@@ -80,7 +80,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             status_code=200,
             content=error(
                 CODE_VALIDATION_ERROR,
-                "validation error",
+                "请求参数错误",
                 data=detail(errors=exc.errors()),
             ),
         )
@@ -106,7 +106,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         logger.exception("Unhandled exception: %s", exc)
         return JSONResponse(
             status_code=200,
-            content=error(CODE_SERVER_ERROR, "internal server error"),
+            content=error(CODE_SERVER_ERROR, "服务器内部错误，请稍后重试"),
         )
 
 

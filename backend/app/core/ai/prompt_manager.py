@@ -55,7 +55,7 @@ def _load_raw(template_path: str) -> str:
     file_path = _PROMPTS_DIR / f"{template_path}.md"
     if not file_path.is_file():
         raise BizException(
-            f"prompt template not found: {template_path}",
+            f"提示词模板不存在：{template_path}",
             code=PROMPT_NOT_FOUND_CODE,
         )
 
