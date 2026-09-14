@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NButton, NInput, NSpin } from 'naive-ui'
 import MarkdownIt from 'markdown-it'
@@ -12,6 +12,7 @@ import json from 'highlight.js/lib/languages/json'
 import 'highlight.js/styles/github.css'
 import { useAgent } from '@/composables/useAgent'
 import { getAgentConversations, getAgentConversationDetail, deleteAgentConversation } from '@/api/agent'
+import { useIsMobile } from '@/composables/useIsMobile'
 import type { AgentConversation, ThinkingStep } from '@/types/agent'
 import AgentThinkingFlow from '@/components/reading/AgentThinkingFlow.vue'
 
@@ -62,6 +63,16 @@ const loadingConversations = ref(false)
 const loadingDetail = ref(false)
 const scrollRef = ref<HTMLElement | null>(null)
 let messageIdCounter = 0
+
+// ---- 移动端适配 ----
+
+const isMobile = useIsMobile()
+
+/** 移动端会话历史抽屉开合状态 */
+const historyOpen = ref(false)
+
+/** 软键盘弹出时跟踪可视视口高度（--app-vvh），保证输入区不被键盘遮挡 */
+let syncViewportHeight: (() => void) | null = null
 
 // ---- 示例提示 ----
 
@@ -130,6 +141,7 @@ async function loadConversations(): Promise<void> {
 
 async function loadConversation(conversationId: number): Promise<void> {
   if (agentStreaming.value) return
+  historyOpen.value = false
   loadingDetail.value = true
   clearAgent()
   currentConversationId.value = conversationId
@@ -181,6 +193,7 @@ async function loadConversation(conversationId: number): Promise<void> {
 
 function startNewChat(): void {
   if (agentStreaming.value) return
+  historyOpen.value = false
   clearAgent()
   messages.value = []
 }
@@ -312,13 +325,38 @@ watch(currentConversationId, (val) => {
 
 onMounted(() => {
   loadConversations()
+
+  // 移动端软键盘适配：键盘弹出/收起时可视视口高度变化，同步到 CSS 变量
+  const vv = window.visualViewport
+  if (vv) {
+    syncViewportHeight = () => {
+      document.documentElement.style.setProperty('--app-vvh', `${vv.height}px`)
+    }
+    vv.addEventListener('resize', syncViewportHeight)
+    syncViewportHeight()
+  }
+})
+
+onUnmounted(() => {
+  if (syncViewportHeight && window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', syncViewportHeight)
+  }
+  document.documentElement.style.removeProperty('--app-vvh')
 })
 </script>
 
 <template>
   <div class="sl">
-    <!-- ============ 左侧：会话历史 ============ -->
-    <aside class="sl-sidebar">
+    <!-- 移动端：抽屉遮罩 -->
+    <Transition name="sl-fade">
+      <div v-if="isMobile && historyOpen" class="sl-backdrop" @click="historyOpen = false" />
+    </Transition>
+
+    <!-- ============ 左侧：会话历史（移动端为左侧抽屉） ============ -->
+    <aside
+      class="sl-sidebar"
+      :class="{ 'sl-sidebar--mobile': isMobile, 'is-open': isMobile && historyOpen }"
+    >
       <button class="sl-new-chat" @click="startNewChat">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="sl-new-chat__icon">
           <path d="M12 5v14M5 12h14" stroke-linecap="round" />
@@ -360,6 +398,22 @@ onMounted(() => {
 
     <!-- ============ 右侧：对话区 ============ -->
     <div class="sl-main">
+      <!-- 移动端顶部操作栏：会话历史 + 新对话 -->
+      <div class="sl-mobile-bar">
+        <button type="button" class="sl-mobile-bar__btn" @click="historyOpen = true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" />
+          </svg>
+          <span>{{ t('agent.historyTitle') }}</span>
+        </button>
+        <button type="button" class="sl-mobile-bar__btn" @click="startNewChat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M12 5v14M5 12h14" stroke-linecap="round" />
+          </svg>
+          <span>{{ t('agent.newChat') }}</span>
+        </button>
+      </div>
+
       <!-- 加载遮罩 -->
       <div v-if="loadingDetail" class="sl-main__loading">
         <NSpin size="medium" />
@@ -503,6 +557,109 @@ onMounted(() => {
   border-right: 1px solid #ececec;
   background: #f7f7f8;
   overflow: hidden;
+}
+
+/* ============================================================
+   移动端适配（< 1024px）：侧边栏变为抽屉
+   ============================================================ */
+.sl-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.sl-fade-enter-active,
+.sl-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.sl-fade-enter-from,
+.sl-fade-leave-to {
+  opacity: 0;
+}
+
+.sl-sidebar--mobile {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 50;
+  max-width: 85vw;
+  transform: translateX(-100%);
+  transition: transform 0.25s ease;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.18);
+}
+
+.sl-sidebar--mobile.is-open {
+  transform: translateX(0);
+}
+
+.sl-mobile-bar {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .sl {
+    /* 可视视口高度扣除顶部导航栏（h-16 = 64px），
+       软键盘弹出时 --app-vvh 随之收缩，保证输入区完整可见 */
+    height: calc(var(--app-vvh, 100%) - 64px);
+  }
+
+  .sl-mobile-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    padding: 8px 12px;
+    border-bottom: 1px solid #ececec;
+    background: #ffffff;
+  }
+
+  .sl-mobile-bar__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border: 1px solid #d8d8e0;
+    border-radius: 8px;
+    background: #ffffff;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1d1d1f;
+    cursor: pointer;
+  }
+
+  .sl-mobile-bar__btn svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+  }
+
+  /* 触屏没有 hover，删除按钮常显 */
+  .sl-session__delete {
+    opacity: 1;
+  }
+
+  .sl-messages__inner {
+    padding: 16px 12px 8px;
+  }
+
+  .sl-empty {
+    min-height: 300px;
+    padding: 24px 16px;
+  }
+
+  .sl-empty__greeting {
+    font-size: 20px;
+  }
+
+  .sl-empty__prompts {
+    max-width: 100%;
+  }
+
+  .sl-input {
+    padding: 12px 12px calc(env(safe-area-inset-bottom) + 12px);
+  }
 }
 
 .sl-new-chat {
@@ -971,6 +1128,23 @@ onMounted(() => {
 :global(html.dark) .sl-sidebar {
   border-color: #1f1f1f;
   background: #131313;
+}
+
+/* 移动端抽屉遮罩暗色 */
+:global(html.dark) .sl-backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+/* 移动端顶部操作栏暗色 */
+:global(html.dark) .sl-mobile-bar {
+  border-bottom-color: #1f1f1f;
+  background: #0a0a0a;
+}
+
+:global(html.dark) .sl-mobile-bar__btn {
+  border-color: #2a2a2a;
+  background: #1c1c1c;
+  color: #ededed;
 }
 
 :global(html.dark) .sl-new-chat {

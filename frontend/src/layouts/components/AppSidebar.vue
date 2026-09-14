@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import { useIsMobile } from '@/composables/useIsMobile'
 import AppLogo from '@/components/AppLogo.vue'
 
 interface NavItem {
@@ -25,9 +26,23 @@ const icons: Record<string, string> = {
 }
 
 const app = useAppStore()
-const { sidebarCollapsed } = storeToRefs(app)
+const { sidebarCollapsed, sidebarOpen } = storeToRefs(app)
+const isMobile = useIsMobile()
 const route = useRoute()
 const { t } = useI18n()
+
+// 移动端：路由跳转后自动关闭抽屉
+watch(
+  () => route.fullPath,
+  () => {
+    if (isMobile.value) app.closeSidebar()
+  }
+)
+
+// 尺寸切换到桌面端时复位抽屉状态
+watch(isMobile, (mobile) => {
+  if (!mobile) app.closeSidebar()
+})
 
 const navItems = computed<NavItem[]>(() => [
   { name: 'home', to: '/', icon: 'home' },
@@ -47,16 +62,31 @@ function isActive(to: string): boolean {
 </script>
 
 <template>
+  <!-- 移动端抽屉遮罩 -->
+  <Transition name="drawer-fade">
+    <div
+      v-if="isMobile && sidebarOpen"
+      class="fixed inset-0 z-40 bg-black/40"
+      @click="app.closeSidebar()"
+    />
+  </Transition>
+
+  <!--
+    桌面端：常规侧边栏（可折叠 w-16 / w-60）。
+    移动端：固定定位抽屉，由 sidebarOpen 控制滑入滑出，始终展示完整宽度与文字。
+  -->
   <aside
-    class="flex h-screen flex-shrink-0 flex-col border-r border-neutral-200 bg-white transition-[width] duration-200 ease-in-out dark:border-neutral-800 dark:bg-neutral-900"
-    :class="sidebarCollapsed ? 'w-16' : 'w-60'"
+    class="flex flex-shrink-0 flex-col border-r border-neutral-200 bg-white transition-[width,transform] duration-200 ease-in-out dark:border-neutral-800 dark:bg-neutral-900"
+    :class="isMobile
+      ? ['fixed inset-y-0 left-0 z-50 w-60 shadow-xl', sidebarOpen ? 'translate-x-0' : '-translate-x-full']
+      : [sidebarCollapsed ? 'w-16' : 'w-60', 'h-screen']"
   >
     <!-- Logo 区 -->
     <div
       class="flex h-16 items-center border-b border-neutral-100 px-4 dark:border-neutral-800"
-      :class="{ 'justify-center px-0': sidebarCollapsed }"
+      :class="{ 'justify-center px-0': sidebarCollapsed && !isMobile }"
     >
-      <AppLogo :compact="sidebarCollapsed" />
+      <AppLogo :compact="sidebarCollapsed && !isMobile" />
     </div>
 
     <!-- 导航 -->
@@ -68,6 +98,7 @@ function isActive(to: string): boolean {
         class="nav-link"
         :class="{ active: isActive(item.to) }"
         :title="t(`nav.${item.name}`)"
+        @click="app.closeSidebar()"
       >
         <svg
           class="nav-icon"
@@ -78,7 +109,7 @@ function isActive(to: string): boolean {
         >
           <path :d="icons[item.icon]" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
-        <span v-if="!sidebarCollapsed" class="nav-label">{{ t(`nav.${item.name}`) }}</span>
+        <span v-if="!sidebarCollapsed || isMobile" class="nav-label">{{ t(`nav.${item.name}`) }}</span>
       </RouterLink>
     </nav>
 
@@ -88,6 +119,16 @@ function isActive(to: string): boolean {
 </template>
 
 <style scoped>
+/* 移动端抽屉遮罩过渡 */
+.drawer-fade-enter-active,
+.drawer-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.drawer-fade-enter-from,
+.drawer-fade-leave-to {
+  opacity: 0;
+}
+
 .nav-link {
   display: flex;
   align-items: center;

@@ -376,8 +376,8 @@ onMounted(() => {
       v-if="user"
       class="rounded-xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900"
     >
-      <!-- 头像 + 用户名 + 修改按钮 -->
-      <div class="flex items-center gap-4">
+      <!-- 头像 + 用户名 + 修改按钮（窄屏允许换行） -->
+      <div class="flex flex-wrap items-center gap-4">
         <!-- 头像（仅展示） -->
         <img
           v-if="user.avatar_url"

@@ -104,7 +104,6 @@ onMounted(fetchList)
         :page="page"
         :page-size="pageSize"
         :item-count="total"
-        show-quick-jumper
         @update:page="handlePageChange"
       />
     </div>

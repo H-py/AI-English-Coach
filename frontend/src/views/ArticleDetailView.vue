@@ -9,6 +9,7 @@ import type { ArticleNeighbors } from '@/types/article'
 import { useArticle } from '@/composables/useArticle'
 import { useReading } from '@/composables/useReading'
 import { useArticleSpeech } from '@/composables/useArticleSpeech'
+import { useIsMobile } from '@/composables/useIsMobile'
 import AiPanel from '@/components/reading/AiPanel.vue'
 
 /**
@@ -47,6 +48,15 @@ function goBack(): void {
 }
 
 const article = computed(() => store.currentArticle)
+
+// ============================================================
+//  移动端适配：AI 面板底部抽屉
+// ============================================================
+
+const isMobile = useIsMobile()
+
+/** 移动端 AI 面板底部抽屉开合状态 */
+const aiSheetOpen = ref(false)
 
 // ============================================================
 //  文章朗读（逐句朗读 + 高亮 + 完整控制）
@@ -123,6 +133,13 @@ const selectedContext = ref('')
 const selectionPartial = ref(false)
 /** 正文内容区 DOM 引用（用于判断选区是否在正文内） */
 const contentRef = ref<HTMLElement | null>(null)
+
+// 移动端：选中正文文本后自动弹出 AI 面板抽屉，便于直接点击解释/翻译
+watch(selectedText, (v) => {
+  if (isMobile.value && v) {
+    aiSheetOpen.value = true
+  }
+})
 
 /**
  * 从文章正文中提取包含选中文本的句子。
@@ -463,9 +480,9 @@ onUnmounted(async () => {
 </script>
 
 <template>
-  <div class="flex h-[calc(100vh-7.5rem)] flex-col gap-6">
+  <div class="flex h-[calc(100dvh-7.5rem)] flex-col gap-6">
     <!-- 顶部操作栏：返回 + 上一篇 / 下一篇 -->
-    <div class="flex items-center justify-between gap-4">
+    <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <button
         type="button"
         class="inline-flex items-center gap-1.5 text-sm text-neutral-500 transition-colors hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
@@ -710,13 +727,13 @@ onUnmounted(async () => {
         </NSpin>
       </article>
 
-      <!-- ======================== 右侧：AI 助手面板（固定不滚动） ======================== -->
+      <!-- ======================== 右侧：AI 助手面板（桌面端固定不滚动） ======================== -->
       <!--
         aside 作为 flex item 拉伸到与文章列等高（align-items: stretch），
         内部 AiPanel height:100% 填满 aside，自带 overflow-y-auto 处理内容溢出。
         不需要 sticky / fixed —— 因为文章列独立滚动，aside 根本不参与滚动。
       -->
-      <aside v-if="article" class="hidden w-[420px] shrink-0 overflow-hidden lg:block">
+      <aside v-if="article && !isMobile" class="w-[420px] shrink-0 overflow-hidden">
         <AiPanel
           :article-id="article.id"
           :history-id="historyId"
@@ -726,6 +743,73 @@ onUnmounted(async () => {
         />
       </aside>
     </div>
+
+    <!-- ======================== 移动端：AI 助手底部抽屉 + 悬浮按钮 ======================== -->
+    <template v-if="article && isMobile">
+      <!-- 遮罩：点击关闭 -->
+      <Transition name="sheet-fade">
+        <div
+          v-if="aiSheetOpen"
+          class="fixed inset-0 z-40 bg-black/30"
+          @click="aiSheetOpen = false"
+        />
+      </Transition>
+
+      <!-- 底部抽屉。
+           v-show（而非 v-if）：AiPanel 需要常驻挂载，其内部通过
+           watch(selectedText) 自动触发单词解释 —— 若用 v-if，抽屉在选词后才
+           挂载，watch 会错过已发生的 selectedText 变化，导致无解释。 -->
+      <Transition name="sheet-up">
+        <div
+          v-show="aiSheetOpen"
+          class="fixed inset-x-0 bottom-0 z-50 flex h-[75dvh] flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-neutral-900"
+        >
+          <!-- 把手 + 标题 + 关闭按钮 -->
+          <div class="flex flex-shrink-0 flex-col items-center border-b border-neutral-100 pt-2 dark:border-neutral-800">
+            <span class="h-1 w-10 rounded-full bg-neutral-200 dark:bg-neutral-700" />
+            <div class="flex w-full items-center justify-between px-4 pb-2 pt-2">
+              <span class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                {{ t('reading.aiAssistant') }}
+              </span>
+              <button
+                type="button"
+                class="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+                :aria-label="t('common.close')"
+                @click="aiSheetOpen = false"
+              >
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 6L6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- AI 面板内容（底部留出安全区，适配全面屏手机） -->
+          <div class="ai-sheet-body flex min-h-0 flex-1 flex-col px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
+            <AiPanel
+              :article-id="article.id"
+              :history-id="historyId"
+              :selected-text="selectedText"
+              :selected-context="selectedContext"
+              :selected-partial="selectionPartial"
+            />
+          </div>
+        </div>
+      </Transition>
+
+      <!-- 悬浮按钮：打开 AI 助手 -->
+      <button
+        v-if="!aiSheetOpen"
+        type="button"
+        class="fixed bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] right-4 z-30 inline-flex items-center gap-1.5 rounded-full bg-neutral-900 px-4 py-3 text-sm font-medium text-white shadow-lg transition-transform active:scale-95 dark:bg-neutral-100 dark:text-neutral-900"
+        @click="aiSheetOpen = true"
+      >
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M12 3l2 7 7 2-7 2-2 7-2-7-7-2 7-2 2-7z" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        {{ t('reading.aiAssistant') }}
+      </button>
+    </template>
   </div>
 </template>
 
@@ -813,5 +897,30 @@ onUnmounted(async () => {
 :global(html.dark) .reading-progress::-moz-range-thumb {
   background: #e4e4e7;
   border-color: #27272a;
+}
+
+/* ---- 移动端 AI 底部抽屉 ---- */
+.sheet-fade-enter-active,
+.sheet-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.sheet-fade-enter-from,
+.sheet-fade-leave-to {
+  opacity: 0;
+}
+
+.sheet-up-enter-active,
+.sheet-up-leave-active {
+  transition: transform 0.25s ease;
+}
+.sheet-up-enter-from,
+.sheet-up-leave-to {
+  transform: translateY(100%);
+}
+
+/* 抽屉内的 AI 面板贴合抽屉容器（去边框圆角） */
+.ai-sheet-body :deep(.ai-panel) {
+  border: none;
+  border-radius: 0;
 }
 </style>

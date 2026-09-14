@@ -14,7 +14,7 @@ const year = new Date().getFullYear()
 
 <template>
   <div
-    class="flex min-h-screen flex-col items-center justify-center bg-neutral-50 px-4 py-10 dark:bg-neutral-950"
+    class="flex min-h-dvh flex-col items-center justify-center bg-neutral-50 px-4 py-10 dark:bg-neutral-950"
   >
     <!-- 顶部：Logo + 应用名 -->
     <div class="mb-8">

@@ -40,11 +40,17 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # ---- MinIO ----
+    # MINIO_ENDPOINT/MINIO_SECURE 是"后端连接 MinIO 用"的内部地址（生产环境为
+    # Docker 服务名 minio:9000）；MINIO_PUBLIC_URL 是"返回给浏览器"的公网地址
+    # （生产环境为 https://hpyxx.online，由 Nginx 反代）。两者必须分开：
+    # 容器内部地址浏览器无法访问，而经 Nginx 的公网地址做 S3 签名会因 Host
+    # 头被改写而校验失败。MINIO_PUBLIC_URL 留空时回退为按内部地址拼接（本地开发）。
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin"
     MINIO_BUCKET: str = "ai-reading-coach"
     MINIO_SECURE: bool = False
+    MINIO_PUBLIC_URL: str = ""
 
     # ---- AI ----
     AI_DEFAULT_PROVIDER: str = "deepseek"

@@ -15,8 +15,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies first to leverage Docker layer caching.
+# 国内服务器构建时可传入镜像加速：--build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+ARG PIP_INDEX_URL=https://pypi.org/simple
+RUN pip install -r requirements.txt -i ${PIP_INDEX_URL}
 
 # Copy the application source code.
 COPY . .

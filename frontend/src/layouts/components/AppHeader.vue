@@ -8,6 +8,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useTheme } from '@/composables/useTheme'
 import { useAuth } from '@/composables/useAuth'
+import { useIsMobile } from '@/composables/useIsMobile'
 import { i18n } from '@/locales'
 
 /**
@@ -21,11 +22,23 @@ const { sidebarCollapsed } = storeToRefs(app)
 const { isAuthenticated, user } = storeToRefs(auth)
 const { toggleTheme, isDark } = useTheme()
 const { logout } = useAuth()
+const isMobile = useIsMobile()
 const router = useRouter()
 const { t } = useI18n()
 
 /** 头像回退：无 avatar_url 时取用户名首字母大写 */
 const userInitial = computed(() => user.value?.username?.charAt(0).toUpperCase() ?? '?')
+
+/**
+ * 左侧按钮：移动端打开导航抽屉，桌面端折叠/展开侧边栏。
+ */
+function handleSidebarToggle(): void {
+  if (isMobile.value) {
+    app.toggleMobileSidebar()
+  } else {
+    app.toggleSidebar()
+  }
+}
 
 function toggleLocale(): void {
   const next = app.locale === 'zh' ? 'en' : 'zh'
@@ -42,17 +55,19 @@ function goLogin(): void {
   <header
     class="flex h-16 flex-shrink-0 items-center justify-between border-b border-neutral-200 bg-white/80 px-4 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/80 sm:px-6"
   >
-    <!-- 左：折叠按钮 -->
+    <!-- 左：折叠按钮（移动端为打开抽屉） -->
     <button
       class="header-btn"
       :title="t('common.toggleSidebar')"
-      @click="app.toggleSidebar()"
+      @click="handleSidebarToggle()"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
         <path
-          :d="sidebarCollapsed
+          :d="isMobile
             ? 'M4 6h16M4 12h16M4 18h16'
-            : 'M4 6h10M4 12h16M4 18h10'"
+            : (sidebarCollapsed
+              ? 'M4 6h16M4 12h16M4 18h16'
+              : 'M4 6h10M4 12h16M4 18h10')"
           stroke-linecap="round"
         />
       </svg>
@@ -106,7 +121,7 @@ function goLogin(): void {
           >
             {{ userInitial }}
           </div>
-          <NText class="user-name" depth="2">{{ user?.username }}</NText>
+          <NText class="user-name hidden sm:inline" depth="2">{{ user?.username }}</NText>
         </div>
         <NButton quaternary size="small" @click="logout">
           {{ t('auth.logout') }}

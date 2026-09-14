@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useStorage } from '@vueuse/core'
 
 export type ThemeMode = 'light' | 'dark'
@@ -20,13 +20,25 @@ export const useAppStore = defineStore('app', () => {
     theme.value = theme.value === 'light' ? 'dark' : 'light'
   }
 
-  // ---- 侧边栏折叠 ----
+  // ---- 侧边栏折叠（桌面端） ----
   const sidebarCollapsed = useStorage<boolean>('arc:sidebar-collapsed', false)
   function toggleSidebar(): void {
     sidebarCollapsed.value = !sidebarCollapsed.value
   }
   function setSidebarCollapsed(collapsed: boolean): void {
     sidebarCollapsed.value = collapsed
+  }
+
+  // ---- 侧边栏抽屉（移动端） ----
+  const sidebarOpen = ref(false)
+  function openSidebar(): void {
+    sidebarOpen.value = true
+  }
+  function closeSidebar(): void {
+    sidebarOpen.value = false
+  }
+  function toggleMobileSidebar(): void {
+    sidebarOpen.value = !sidebarOpen.value
   }
 
   // ---- 语言 ----
@@ -39,6 +51,7 @@ export const useAppStore = defineStore('app', () => {
     // state
     theme,
     sidebarCollapsed,
+    sidebarOpen,
     locale,
     // getters
     isDark,
@@ -47,6 +60,9 @@ export const useAppStore = defineStore('app', () => {
     toggleTheme,
     toggleSidebar,
     setSidebarCollapsed,
+    openSidebar,
+    closeSidebar,
+    toggleMobileSidebar,
     setLocale
   }
 })

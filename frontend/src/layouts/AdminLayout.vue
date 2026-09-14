@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { NButton } from 'naive-ui'
 import { useAuthStore } from '@/stores/auth'
 import { useTheme } from '@/composables/useTheme'
 import { useAuth } from '@/composables/useAuth'
+import { useIsMobile } from '@/composables/useIsMobile'
 import AppLogo from '@/components/AppLogo.vue'
 
 /**
@@ -34,6 +35,24 @@ const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
 
+// ---- 移动端侧边栏抽屉 ----
+
+const isMobile = useIsMobile()
+const sidebarOpen = ref(false)
+
+// 路由跳转后自动关闭抽屉
+watch(
+  () => route.fullPath,
+  () => {
+    sidebarOpen.value = false
+  }
+)
+
+// 切换到桌面端时复位抽屉状态
+watch(isMobile, (mobile) => {
+  if (!mobile) sidebarOpen.value = false
+})
+
 const navItems = computed<NavItem[]>(() => [
   { name: 'dashboard', to: '/admin', icon: 'dashboard' },
   { name: 'articles', to: '/admin/articles', icon: 'articles' },
@@ -52,11 +71,23 @@ function goBackToSite(): void {
 
 <template>
   <div
-    class="flex h-screen w-full overflow-hidden bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100"
+    class="flex h-dvh w-full overflow-hidden bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100"
   >
-    <!-- 侧边栏 -->
+    <!-- 移动端抽屉遮罩 -->
+    <Transition name="drawer-fade">
+      <div
+        v-if="isMobile && sidebarOpen"
+        class="fixed inset-0 z-40 bg-black/40"
+        @click="sidebarOpen = false"
+      />
+    </Transition>
+
+    <!-- 侧边栏：桌面端固定展示，移动端为左侧滑出抽屉 -->
     <aside
-      class="flex h-screen w-60 flex-shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900"
+      class="flex flex-shrink-0 flex-col border-r border-neutral-200 bg-white transition-[width,transform] duration-200 ease-in-out dark:border-neutral-800 dark:bg-neutral-900"
+      :class="isMobile
+        ? ['fixed inset-y-0 left-0 z-50 w-60 shadow-xl', sidebarOpen ? 'translate-x-0' : '-translate-x-full']
+        : 'h-screen w-60'"
     >
       <!-- Logo 区 -->
       <div class="flex h-16 items-center border-b border-neutral-100 px-4 dark:border-neutral-800">
@@ -78,6 +109,7 @@ function goBackToSite(): void {
           :to="item.to"
           class="nav-link"
           :class="{ active: isActive(item.to) }"
+          @click="sidebarOpen = false"
         >
           <svg
             class="nav-icon"
@@ -94,7 +126,10 @@ function goBackToSite(): void {
 
       <!-- 底部：返回前台 + 登出 -->
       <div class="space-y-1 border-t border-neutral-100 px-2 py-3 dark:border-neutral-800">
-        <button class="nav-link w-full" @click="goBackToSite">
+        <button
+          class="nav-link w-full"
+          @click="goBackToSite(); sidebarOpen = false"
+        >
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path :d="icons.back" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
@@ -105,15 +140,29 @@ function goBackToSite(): void {
 
     <!-- 主内容区 -->
     <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
-      <!-- 顶栏 -->
+      <!-- 顶栏：移动端左侧为打开抽屉按钮 -->
       <header
-        class="flex h-16 flex-shrink-0 items-center justify-between border-b border-neutral-200 bg-white/80 px-6 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/80"
+        class="flex h-16 flex-shrink-0 items-center justify-between gap-2 border-b border-neutral-200 bg-white/80 px-4 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/80 sm:px-6"
       >
-        <span class="text-sm font-medium text-neutral-500 dark:text-neutral-400">
-          {{ auth.user?.username }} · {{ t('admin.title') }}
-        </span>
+        <div class="flex min-w-0 items-center gap-2">
+          <!-- 移动端：汉堡按钮打开抽屉 -->
+          <button
+            v-if="isMobile"
+            class="header-btn"
+            :aria-label="t('common.toggleSidebar')"
+            @click="sidebarOpen = true"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" />
+            </svg>
+          </button>
 
-        <div class="flex items-center gap-2">
+          <span class="truncate text-sm font-medium text-neutral-500 dark:text-neutral-400">
+            {{ auth.user?.username }} · {{ t('admin.title') }}
+          </span>
+        </div>
+
+        <div class="flex flex-shrink-0 items-center gap-2">
           <button
             class="header-btn"
             :title="t('common.toggleTheme')"
@@ -143,7 +192,7 @@ function goBackToSite(): void {
 
       <!-- 内容 -->
       <main class="flex-1 overflow-y-auto">
-        <div class="mx-auto w-full max-w-7xl px-6 py-8 sm:px-8 lg:px-10">
+        <div class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-8 lg:px-10">
           <RouterView />
         </div>
       </main>
@@ -152,6 +201,16 @@ function goBackToSite(): void {
 </template>
 
 <style scoped>
+/* 移动端抽屉遮罩过渡 */
+.drawer-fade-enter-active,
+.drawer-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.drawer-fade-enter-from,
+.drawer-fade-leave-to {
+  opacity: 0;
+}
+
 .nav-link {
   display: flex;
   align-items: center;

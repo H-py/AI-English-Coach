@@ -15,7 +15,7 @@ const route = useRoute()
 
 <template>
   <div
-    class="flex h-screen w-full overflow-hidden bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100"
+    class="flex h-dvh w-full overflow-hidden bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100"
   >
     <AppSidebar />
 
@@ -27,7 +27,7 @@ const route = useRoute()
         <RouterView v-if="route.meta.fullHeight" />
 
         <!-- 常规页面：居中限宽 -->
-        <div v-else class="mx-auto w-full max-w-7xl px-6 py-8 sm:px-8 lg:px-10">
+        <div v-else class="mx-auto w-full max-w-7xl px-4 py-8 sm:px-8 lg:px-10">
           <RouterView />
         </div>
       </main>

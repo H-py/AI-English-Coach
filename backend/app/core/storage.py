@@ -71,6 +71,19 @@ def ensure_bucket() -> None:
         raise
 
 
+def _public_base_url() -> str:
+    """返回浏览器可访问的 MinIO 公网地址前缀。
+
+    生产环境后端通过 Docker 网络直连 MinIO（MINIO_ENDPOINT=minio:9000），
+    但返回给浏览器的 URL 必须走公网域名（由 Nginx 反代），两者通过
+    MINIO_PUBLIC_URL 区分。未配置时回退为按内部连接地址拼接（本地开发场景）。
+    """
+    if settings.MINIO_PUBLIC_URL:
+        return settings.MINIO_PUBLIC_URL.rstrip("/")
+    scheme = "https" if settings.MINIO_SECURE else "http"
+    return f"{scheme}://{settings.MINIO_ENDPOINT}"
+
+
 def upload_avatar(user_id: int, content: bytes, content_type: str, ext: str) -> str:
     """将头像字节上传到 MinIO，返回对象的访问 URL。
 
@@ -91,5 +104,4 @@ def upload_avatar(user_id: int, content: bytes, content_type: str, ext: str) -> 
         len(content),
         content_type=content_type,
     )
-    scheme = "https" if settings.MINIO_SECURE else "http"
-    return f"{scheme}://{settings.MINIO_ENDPOINT}/{settings.MINIO_BUCKET}/{object_name}"
+    return f"{_public_base_url()}/{settings.MINIO_BUCKET}/{object_name}"

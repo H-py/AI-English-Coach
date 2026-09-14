@@ -1,6 +1,7 @@
 # Dependencies
 node_modules
 npm_cache
+.npm-cache
 .pnp
 .pnp.js
 

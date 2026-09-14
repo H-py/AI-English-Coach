@@ -17,6 +17,7 @@ import {
 import type { DataTableColumns, SelectOption } from 'naive-ui'
 import { adminApi } from '@/api/admin'
 import StarRating from '@/components/StarRating.vue'
+import { useIsMobile } from '@/composables/useIsMobile'
 import type { AdminArticleListItem, AdminArticleQuery } from '@/types/admin'
 import type { CetType, Difficulty } from '@/types/article'
 
@@ -40,6 +41,7 @@ import type { CetType, Difficulty } from '@/types/article'
 const { t } = useI18n()
 const router = useRouter()
 const message = useMessage()
+const isMobile = useIsMobile()
 
 // ============================================================
 //  查询状态
@@ -211,18 +213,93 @@ function rowKey(row: AdminArticleListItem): number {
 //  表格列定义（标签 / 操作使用 h() 渲染）
 // ============================================================
 
-const columns = computed<DataTableColumns<AdminArticleListItem>>(() => [
+/** 标题列渲染：加粗显示 */
+function renderTitle(row: AdminArticleListItem) {
+  return h(
+    'span',
+    { class: 'font-medium text-neutral-900 dark:text-neutral-100' },
+    row.title
+  )
+}
+
+/** 发布状态列渲染：已发布/草稿标签 */
+function renderStatus(row: AdminArticleListItem) {
+  return h(
+    NTag,
+    {
+      type: row.is_published ? 'success' : 'default',
+      size: 'small',
+      bordered: false,
+      round: true
+    },
+    {
+      default: () =>
+        row.is_published ? t('admin.article.published') : t('admin.article.draft')
+    }
+  )
+}
+
+/** 操作列渲染：编辑 + 删除（删除带二次确认） */
+function renderActions(row: AdminArticleListItem) {
+  return h(NSpace, { size: 8, wrap: false }, () => [
+    h(
+      NButton,
+      { size: 'small', secondary: true, onClick: () => handleEdit(row.id) },
+      { default: () => t('admin.article.edit') }
+    ),
+    h(
+      NPopconfirm,
+      {
+        positiveText: t('common.delete'),
+        negativeText: t('common.cancel'),
+        onPositiveClick: () => handleDelete(row.id)
+      },
+      {
+        trigger: () =>
+          h(
+            NButton,
+            { size: 'small', quaternary: true, type: 'error' },
+            { default: () => t('admin.article.delete') }
+          ),
+        default: () => t('admin.article.deleteConfirm')
+      }
+    )
+  ])
+}
+
+const columns = computed<DataTableColumns<AdminArticleListItem>>(() => {
+  // 移动端：仅保留标题/状态/操作核心列，避免长表格把关键信息推出屏幕
+  if (isMobile.value) {
+    return [
+      {
+        title: t('admin.article.fields.title'),
+        key: 'title',
+        minWidth: 150,
+        ellipsis: { tooltip: true },
+        render: renderTitle
+      },
+      {
+        title: t('admin.article.status'),
+        key: 'is_published',
+        width: 90,
+        render: renderStatus
+      },
+      {
+        title: t('admin.article.actions'),
+        key: 'actions',
+        width: 150,
+        render: renderActions
+      }
+    ]
+  }
+
+  return [
   {
     title: t('admin.article.fields.title'),
     key: 'title',
     minWidth: 220,
     ellipsis: { tooltip: true },
-    render: (row) =>
-      h(
-        'span',
-        { class: 'font-medium text-neutral-900 dark:text-neutral-100' },
-        row.title
-      )
+    render: renderTitle
   },
   {
     title: t('admin.article.fields.difficulty'),
@@ -278,20 +355,7 @@ const columns = computed<DataTableColumns<AdminArticleListItem>>(() => [
     title: t('admin.article.status'),
     key: 'is_published',
     width: 120,
-    render: (row) =>
-      h(
-        NTag,
-        {
-          type: row.is_published ? 'success' : 'default',
-          size: 'small',
-          bordered: false,
-          round: true
-        },
-        {
-          default: () =>
-            row.is_published ? t('admin.article.published') : t('admin.article.draft')
-        }
-      )
+    render: renderStatus
   },
   {
     title: t('admin.article.views'),
@@ -332,34 +396,10 @@ const columns = computed<DataTableColumns<AdminArticleListItem>>(() => [
     title: t('admin.article.actions'),
     key: 'actions',
     width: 170,
-    fixed: 'right',
-    render: (row) =>
-      h(NSpace, { size: 8, wrap: false }, () => [
-        h(
-          NButton,
-          { size: 'small', secondary: true, onClick: () => handleEdit(row.id) },
-          { default: () => t('admin.article.edit') }
-        ),
-        h(
-          NPopconfirm,
-          {
-            positiveText: t('common.delete'),
-            negativeText: t('common.cancel'),
-            onPositiveClick: () => handleDelete(row.id)
-          },
-          {
-            trigger: () =>
-              h(
-                NButton,
-                { size: 'small', quaternary: true, type: 'error' },
-                { default: () => t('admin.article.delete') }
-              ),
-            default: () => t('admin.article.deleteConfirm')
-          }
-        )
-      ])
+    render: renderActions
   }
-])
+  ]
+})
 
 onMounted(fetchArticles)
 </script>
@@ -376,44 +416,46 @@ onMounted(fetchArticles)
       </p>
     </header>
 
-    <!-- 工具栏：搜索 + 筛选 + 新建 -->
+    <!-- 工具栏：搜索 + 筛选 + 新建（移动端允许换行） -->
     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-      <NSpace :size="12" align="center" :wrap="true">
-        <NInput
-          v-model:value="searchQuery"
-          :placeholder="t('admin.article.searchPlaceholder')"
-          clearable
-          class="w-full sm:w-64"
-        >
-          <template #prefix>
-            <svg class="h-4 w-4 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M21 21l-4.3-4.3" stroke-linecap="round" />
-            </svg>
-          </template>
-        </NInput>
+      <div class="flex flex-wrap items-center gap-3">
+        <!-- NInput 根元素写死 width:100%，宽度由外层 div 控制 -->
+        <div class="w-full sm:w-64">
+          <NInput
+            v-model:value="searchQuery"
+            :placeholder="t('admin.article.searchPlaceholder')"
+            clearable
+          >
+            <template #prefix>
+              <svg class="h-4 w-4 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M21 21l-4.3-4.3" stroke-linecap="round" />
+              </svg>
+            </template>
+          </NInput>
+        </div>
 
         <NSelect
           :value="difficultyFilter"
           :options="difficultyOptions"
-          class="w-44"
+          class="w-full sm:w-44"
           @update:value="handleDifficultyChange"
         />
 
         <NSelect
           :value="cetTypeFilter"
           :options="cetTypeOptions"
-          class="w-32"
+          class="w-full sm:w-32"
           @update:value="handleCetTypeChange"
         />
 
         <NSelect
           :value="statusFilter"
           :options="statusOptions"
-          class="w-36"
+          class="w-full sm:w-36"
           @update:value="handleStatusChange"
         />
-      </NSpace>
+      </div>
 
       <NButton type="primary" @click="handleCreate">
         <template #icon>
@@ -425,8 +467,8 @@ onMounted(fetchArticles)
       </NButton>
     </div>
 
-    <!-- 表格 -->
-    <div class="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+    <!-- 表格：外层原生横向滚动容器（naive 内部滚动在移动端触摸不可靠） -->
+    <div class="table-scroll rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
       <NDataTable
         :columns="columns"
         :data="articles"
@@ -434,7 +476,8 @@ onMounted(fetchArticles)
         :pagination="false"
         :bordered="false"
         :row-key="rowKey"
-        :scroll-x="1180"
+        table-layout="fixed"
+        :style="{ minWidth: isMobile ? '420px' : '1180px' }"
       >
         <template #empty>
           <div class="py-16 text-center text-sm text-neutral-400 dark:text-neutral-500">
@@ -455,7 +498,6 @@ onMounted(fetchArticles)
         :item-count="total"
         :page-sizes="pageSizeOptions"
         show-size-picker
-        show-quick-jumper
         @update:page="handlePageChange"
         @update:page-size="handlePageSizeChange"
       />

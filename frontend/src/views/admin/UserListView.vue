@@ -16,6 +16,7 @@ import {
 } from 'naive-ui'
 import { adminApi } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
+import { useIsMobile } from '@/composables/useIsMobile'
 import type { AdminUser, AdminUserQuery } from '@/types/admin'
 import type { UserRole } from '@/types/auth'
 
@@ -33,6 +34,7 @@ import type { UserRole } from '@/types/auth'
 const { t } = useI18n()
 const message = useMessage()
 const authStore = useAuthStore()
+const isMobile = useIsMobile()
 
 // 当前登录用户 ID（用于自删保护）
 const currentUserId = computed(() => authStore.user?.id)
@@ -177,7 +179,45 @@ function rowKey(row: AdminUser): number {
   return row.id
 }
 
-const columns = computed<DataTableColumns<AdminUser>>(() => [
+const columns = computed<DataTableColumns<AdminUser>>(() => {
+  // 移动端：仅保留核心列（用户名/邮箱/角色/状态），操作按钮紧凑换行，
+  // 避免全量 8 列在手机上需要横向滚动多屏才能看到关键信息
+  if (isMobile.value) {
+    return [
+      {
+        title: t('admin.user.fields.username'),
+        key: 'username',
+        width: 110,
+        ellipsis: { tooltip: true }
+      },
+      {
+        title: t('admin.user.fields.email'),
+        key: 'email',
+        minWidth: 150,
+        ellipsis: { tooltip: true }
+      },
+      {
+        title: t('admin.user.fields.role'),
+        key: 'role',
+        width: 90,
+        render: renderRole
+      },
+      {
+        title: t('admin.user.fields.isActive'),
+        key: 'is_active',
+        width: 90,
+        render: renderActive
+      },
+      {
+        title: t('admin.user.actions'),
+        key: 'actions',
+        width: 170,
+        render: (row) => renderActions(row, true)
+      }
+    ]
+  }
+
+  return [
   {
     title: t('admin.user.fields.id'),
     key: 'id',
@@ -199,12 +239,7 @@ const columns = computed<DataTableColumns<AdminUser>>(() => [
     title: t('admin.user.fields.role'),
     key: 'role',
     width: 110,
-    render: (row) =>
-      h(
-        NTag,
-        { type: row.role === 'admin' ? 'info' : 'default', bordered: false },
-        { default: () => t('admin.user.roleOptions.' + row.role) }
-      )
+    render: renderRole
   },
   {
     title: t('admin.user.fields.englishLevel'),
@@ -216,12 +251,7 @@ const columns = computed<DataTableColumns<AdminUser>>(() => [
     title: t('admin.user.fields.isActive'),
     key: 'is_active',
     width: 110,
-    render: (row) =>
-      h(
-        NTag,
-        { type: row.is_active ? 'success' : 'error', bordered: false },
-        { default: () => (row.is_active ? t('admin.user.active') : t('admin.user.disabled')) }
-      )
+    render: renderActive
   },
   {
     title: t('admin.user.fields.createdAt'),
@@ -239,13 +269,32 @@ const columns = computed<DataTableColumns<AdminUser>>(() => [
     title: t('admin.user.actions'),
     key: 'actions',
     width: 340,
-    fixed: 'right',
     render: (row) => renderActions(row)
   }
-])
+  ]
+})
 
-/** 渲染行操作按钮：启用/禁用、切换角色、删除（自删保护 + 二次确认） */
-function renderActions(row: AdminUser) {
+/** 角色列：管理员/普通用户标签 */
+function renderRole(row: AdminUser) {
+  return h(
+    NTag,
+    { type: row.role === 'admin' ? 'info' : 'default', bordered: false },
+    { default: () => t('admin.user.roleOptions.' + row.role) }
+  )
+}
+
+/** 状态列：启用/禁用标签 */
+function renderActive(row: AdminUser) {
+  return h(
+    NTag,
+    { type: row.is_active ? 'success' : 'error', bordered: false },
+    { default: () => (row.is_active ? t('admin.user.active') : t('admin.user.disabled')) }
+  )
+}
+
+/** 渲染行操作按钮：启用/禁用、切换角色、删除（自删保护 + 二次确认）
+ *  compact=true（移动端）时按钮换行排列，压缩操作列宽度 */
+function renderActions(row: AdminUser, compact = false) {
   const isSelf = row.id === currentUserId.value
   const current = action.value
   // 当前行是否有进行中的操作，及其类型
@@ -316,7 +365,7 @@ function renderActions(row: AdminUser) {
 
   return h(
     NSpace,
-    { size: 'small', wrap: false },
+    { size: 'small', wrap: compact },
     { default: () => [toggleActiveBtn, toggleRoleBtn, deleteNode] }
   )
 }
@@ -339,28 +388,30 @@ onMounted(fetchUsers)
       </h1>
     </header>
 
-    <!-- 工具栏：搜索 + 角色筛选 -->
+    <!-- 工具栏：搜索 + 角色筛选（移动端换行） -->
     <section
       class="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900"
     >
-      <NSpace align="center" :size="12">
-        <NInput
-          v-model:value="searchQuery"
-          :placeholder="t('admin.user.searchPlaceholder')"
-          clearable
-          class="w-full sm:w-72"
-        />
+      <div class="flex flex-wrap items-center gap-3">
+        <!-- NInput 根元素写死 width:100%，宽度由外层 div 控制 -->
+        <div class="w-full sm:w-72">
+          <NInput
+            v-model:value="searchQuery"
+            :placeholder="t('admin.user.searchPlaceholder')"
+            clearable
+          />
+        </div>
         <NSelect
           v-model:value="roleFilter"
           :options="roleOptions"
-          class="w-40"
+          class="w-full sm:w-40"
         />
-      </NSpace>
+      </div>
     </section>
 
-    <!-- 用户表格 -->
+    <!-- 用户表格：外层原生横向滚动容器（naive 内部滚动在移动端触摸不可靠） -->
     <section
-      class="rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900"
+      class="table-scroll rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900"
     >
       <NDataTable
         :columns="columns"
@@ -369,7 +420,8 @@ onMounted(fetchUsers)
         :pagination="false"
         :bordered="false"
         :row-key="rowKey"
-        :scroll-x="1280"
+        table-layout="fixed"
+        :style="{ minWidth: isMobile ? '620px' : '1280px' }"
       />
     </section>
 
@@ -379,7 +431,6 @@ onMounted(fetchUsers)
         :page="page"
         :page-size="pageSize"
         :item-count="total"
-        show-quick-jumper
         @update:page="handlePageChange"
       />
     </div>

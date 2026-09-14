@@ -538,13 +538,14 @@ onMounted(fetchWords)
         <NTab name="mastered">{{ t('vocabulary.mastered') }}</NTab>
       </NTabs>
 
-      <div class="flex items-center gap-3">
+      <!-- 移动端允许换行：搜索框占满整行，AI 背诵按钮换行显示 -->
+      <div class="flex flex-wrap items-center gap-3">
         <span class="hidden whitespace-nowrap text-xs text-neutral-400 dark:text-neutral-500 sm:inline">
           {{ t('vocabulary.totalWords', { count: total }) }}
         </span>
         <!-- 宽度放在普通 div 上（naive-ui 的 NInput 根元素写死 width:100%，
              会覆盖 Tailwind 的 w-* 类，所以用包装层控制宽度） -->
-        <div class="w-80 sm:w-[16rem]">
+        <div class="w-full sm:w-[16rem]">
           <NInput
             v-model:value="searchQuery"
             :placeholder="t('vocabulary.searchPlaceholder')"

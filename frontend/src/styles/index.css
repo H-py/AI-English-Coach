@@ -31,6 +31,31 @@ html.dark body {
   color: #ededed;
 }
 
+/* ---- 移动端触控优化 ----
+   去除 iOS/Android 点击时的灰色高亮块，避免阅读时视觉干扰 */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---- 表格原生横向滚动 ----
+   naive-ui 数据表格 scroll-x 的内部自定义滚动容器（NScrollbar）在移动端
+   触摸滑动不可靠；改为由本容器负责横向滚动，配合各表格根元素上设置的
+   min-width（替代 scroll-x），所有移动浏览器均支持原生触摸滑动。 */
+.table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* iOS 输入框字体小于 16px 时聚焦会自动放大页面，统一为 16px 兜底 */
+@media (max-width: 1023px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 /* 阅读区舒适行高与字距 */
 .prose-comfortable {
   line-height: 1.75;
